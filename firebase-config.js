@@ -13,13 +13,13 @@ window.EvoriaFirebaseConfig = (function () {
   // Stored or Default Firebase Credentials
   // You can paste your credentials directly here:
   const DEFAULT_CONFIG = {
-    apiKey: "AIzaSyB5YDvsvyiqLK8w0Qo__i6Fuz9sB1RFIJI",
+    apiKey: "AIzaSyB5YDvsvyiqlK8wOQo__16Fuz9sB1RfIJI",
     authDomain: "evoriabloom-9dd11.firebaseapp.com",
     projectId: "evoriabloom-9dd11",
     storageBucket: "evoriabloom-9dd11.firebasestorage.app",
     messagingSenderId: "638623635142",
     appId: "1:638623635142:web:e195d002efd207b524a9c7",
-    measurementId: "G-MEQ7G2LJ56"
+    measurementId: "G-MEQ7G2L356"
   };
 
   // Check if user has saved custom config in localStorage
@@ -27,7 +27,13 @@ window.EvoriaFirebaseConfig = (function () {
     try {
       const custom = localStorage.getItem('evoriabloom_firebase_config');
       if (custom) {
-        return JSON.parse(custom);
+        const parsed = JSON.parse(custom);
+        // If parsed contains legacy faulty API key, clean it up
+        if (parsed.apiKey && parsed.apiKey.includes('RFIJI')) {
+          localStorage.removeItem('evoriabloom_firebase_config');
+          return DEFAULT_CONFIG;
+        }
+        return parsed;
       }
     } catch (e) {
       console.warn('Could not read custom Firebase config:', e);
