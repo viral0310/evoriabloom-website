@@ -105,7 +105,7 @@ window.EvoriaAuth = (function () {
       }).catch(err => {
         console.error('getRedirectResult note:', err);
         if (err.code === 'auth/unauthorized-domain') {
-          alert('Firebase Authorized Domains નોંધ:\nતમારા Firebase Console -> Authentication -> Settings -> Authorized Domains માં "' + window.location.hostname + '" ઉમેરો.');
+          alert('Firebase Authorized Domains Notice:\nPlease add "' + window.location.hostname + '" under Firebase Console -> Authentication -> Settings -> Authorized Domains.');
         } else if (err.code && err.code !== 'auth/null-user') {
           alert('Mobile Sign-in Error: ' + err.message);
         }
@@ -127,7 +127,7 @@ window.EvoriaAuth = (function () {
     }
 
     if (!isConfigured) {
-      alert("તમારા Firebase પ્રોજેક્ટનું Configuration બાકી છે. કૃપા કરીને Firebase Config સેટ કરો.");
+      alert("Firebase Project Configuration is required. Please set up your Firebase Config.");
       const modal = document.getElementById('firebase-config-modal');
       if (modal) modal.classList.remove('hidden');
       return null;
@@ -135,9 +135,9 @@ window.EvoriaAuth = (function () {
 
     if (isInAppBrowser()) {
       alert(
-        "📱 ધ્યાન આપો:\n\n" +
-        "તમે WhatsApp / Instagram ના અંદરના બ્રાઉઝરમાં છો.\nGoogle અહીંથી લૉગિન બ્લૉક કરે છે.\n\n" +
-        "કૃપા કરીને ઉપર 3 ટપકાં (⋮) અથવા શેર પર ક્લિક કરીને 'Open in Chrome' અથવા 'Open in Safari' પસંદ કરો."
+        "📱 Notice:\n\n" +
+        "You are opening this in WhatsApp / Instagram embedded browser.\nGoogle blocks sign-in inside in-app webviews.\n\n" +
+        "Please tap the 3 dots (⋮) or share icon and select 'Open in Chrome' or 'Open in Safari'."
       );
     }
 
@@ -178,7 +178,7 @@ window.EvoriaAuth = (function () {
           alert('Login Redirect Error: ' + e.message);
         }
       } else if (error.code === 'auth/unauthorized-domain') {
-        alert('Firebase સેટિંગ નોંધ: તમારા Firebase Console -> Authentication -> Settings -> Authorized Domains માં "' + window.location.hostname + '" ઉમેરવું પડશે.');
+        alert('Firebase Setup Notice: Please add "' + window.location.hostname + '" to your Firebase Console -> Authentication -> Settings -> Authorized Domains.');
       } else {
         alert('Google Login: ' + error.message);
       }
@@ -227,16 +227,60 @@ window.EvoriaAuth = (function () {
    * Log Processing Activity in Firestore Database
    */
   async function logActivity(userId, data) {
-    if (!db || !userId) return;
+    if (!db) return;
 
     try {
-      const activityRef = db.collection('users').doc(userId).collection('activities');
-      await activityRef.add({
+      if (userId) {
+        const activityRef = db.collection('users').doc(userId).collection('activities');
+        await activityRef.add({
+          ...data,
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      // Top-level collection for admin oversight
+      await db.collection('all_activities').add({
         ...data,
+        userId: userId || 'anonymous',
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
     } catch (err) {
       console.warn('Error recording activity in Firestore:', err);
+    }
+  }
+
+  /**
+   * Fetch all users from Firestore (Admin Only)
+   */
+  async function fetchAllUsers() {
+    if (!db) return [];
+    try {
+      const snap = await db.collection('users').get();
+      const users = [];
+      snap.forEach(doc => {
+        users.push({ id: doc.id, ...doc.data() });
+      });
+      return users;
+    } catch (e) {
+      console.warn('Firestore fetchAllUsers note:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch all activities from Firestore (Admin Only)
+   */
+  async function fetchAllActivities() {
+    if (!db) return [];
+    try {
+      const snap = await db.collection('all_activities').limit(200).get();
+      const acts = [];
+      snap.forEach(doc => {
+        acts.push({ id: doc.id, ...doc.data() });
+      });
+      return acts;
+    } catch (e) {
+      console.warn('Firestore fetchAllActivities note:', e);
+      return [];
     }
   }
 
@@ -272,6 +316,8 @@ window.EvoriaAuth = (function () {
     onAuthChange,
     saveUserToDatabase,
     logActivity,
+    fetchAllUsers,
+    fetchAllActivities,
     getIsConfigured
   };
 })();

@@ -62,18 +62,26 @@ window.EvoriaDB = (function () {
     if (!user || !user.email) return;
     init();
 
-    const existingIdx = usersCache.findIndex(u => u.email.toLowerCase() === user.email.toLowerCase());
+    const emailLower = user.email.toLowerCase().trim();
+    const existingIdx = usersCache.findIndex(u => (u.email || '').toLowerCase().trim() === emailLower);
+    const now = new Date().toISOString();
+
     const userData = {
       uid: user.uid || 'usr_' + Date.now(),
       displayName: user.displayName || user.email.split('@')[0],
-      email: user.email.toLowerCase(),
+      email: emailLower,
       photoURL: user.photoURL || '',
-      lastLoginAt: new Date().toISOString()
+      role: emailLower === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'seller',
+      lastLoginAt: now,
+      totalLabels: (existingIdx >= 0 && usersCache[existingIdx].totalLabels) ? usersCache[existingIdx].totalLabels : 0,
+      totalBatches: (existingIdx >= 0 && usersCache[existingIdx].totalBatches) ? usersCache[existingIdx].totalBatches : 0
     };
 
     if (existingIdx >= 0) {
+      userData.registeredAt = usersCache[existingIdx].registeredAt || now;
       usersCache[existingIdx] = { ...usersCache[existingIdx], ...userData };
     } else {
+      userData.registeredAt = now;
       usersCache.unshift(userData);
     }
 
@@ -88,6 +96,16 @@ window.EvoriaDB = (function () {
   function isAdmin(user) {
     const u = user || getActiveUser();
     return !!(u && u.email && u.email.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase());
+  }
+
+  /**
+   * Get all registered users (Admin Only)
+   */
+  function getUsers() {
+    init();
+    const active = getActiveUser();
+    if (!isAdmin(active)) return [];
+    return usersCache;
   }
 
   /**
@@ -115,14 +133,17 @@ window.EvoriaDB = (function () {
     init();
 
     const now = new Date();
+    const email = (entry.userEmail || (getActiveUser() ? getActiveUser().email : 'anonymous')).toLowerCase().trim();
+
     const record = {
       id: 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       timestamp: now.toISOString(),
       dateStr: now.toLocaleDateString('en-GB'),
       timeStr: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      userEmail: entry.userEmail || (getActiveUser() ? getActiveUser().email : 'anonymous'),
+      userEmail: email,
       userName: entry.userName || (getActiveUser() ? getActiveUser().displayName : 'Seller'),
       platform: (entry.platform || 'meesho').toUpperCase(),
+      fileName: entry.fileName || 'Shipping_Labels.pdf',
       type: entry.type || 'PDF Processing',
       labelCount: Number(entry.labelCount || 0),
       skuCount: Number(entry.skuCount || 0),
@@ -132,11 +153,20 @@ window.EvoriaDB = (function () {
     };
 
     activitiesCache.unshift(record);
-    // Keep max 500 records locally
-    if (activitiesCache.length > 500) {
-      activitiesCache = activitiesCache.slice(0, 500);
+    // Keep max 1000 records locally
+    if (activitiesCache.length > 1000) {
+      activitiesCache = activitiesCache.slice(0, 1000);
     }
     _saveJSON(STORAGE_KEY_ACTIVITIES, activitiesCache);
+
+    // Update user's cumulative label counts in usersCache
+    const uIdx = usersCache.findIndex(u => (u.email || '').toLowerCase().trim() === email);
+    if (uIdx >= 0) {
+      usersCache[uIdx].totalLabels = (usersCache[uIdx].totalLabels || 0) + record.labelCount;
+      usersCache[uIdx].totalBatches = (usersCache[uIdx].totalBatches || 0) + 1;
+      usersCache[uIdx].lastActiveAt = now.toISOString();
+      _saveJSON(STORAGE_KEY_USERS, usersCache);
+    }
 
     // Sync to Cloud Webhook if configured (e.g. Google Sheets)
     _syncToCloudWebhook(record);
@@ -190,6 +220,7 @@ window.EvoriaDB = (function () {
       ? activitiesCache
       : (active && active.email ? activitiesCache.filter(a => (a.userEmail || '').toLowerCase() === active.email.toLowerCase()) : []);
 
+    const totalUsers = isAdmin(active) ? usersCache.length : 1;
     const totalBatches = list.length;
     let totalLabels = 0;
     let totalSkus = 0;
@@ -205,6 +236,7 @@ window.EvoriaDB = (function () {
     });
 
     return {
+      totalUsers,
       totalBatches,
       totalLabels,
       totalSkus,
@@ -219,7 +251,7 @@ window.EvoriaDB = (function () {
     init();
     const active = getActiveUser();
     if (!isAdmin(active)) {
-      alert('⚠️ ડેટાબેઝ એક્સપોર્ટ ફક્ત Admin (viraltada2001@gmail.com) માટે જ ઉપલબ્ધ છે.');
+      alert('⚠️ Database Export is exclusively available to Admin (viraltada2001@gmail.com).');
       return;
     }
 
@@ -228,7 +260,7 @@ window.EvoriaDB = (function () {
       return;
     }
 
-    const headers = ['ID', 'Date', 'Time', 'User Email', 'User Name', 'Platform', 'Type', 'Labels Processed', 'Unique SKUs', 'Crop Invoice', 'Combo Setting'];
+    const headers = ['ID', 'Date', 'Time', 'User Email', 'User Name', 'Platform', 'PDF File Name', 'Type', 'Labels Processed', 'Unique SKUs', 'Crop Invoice', 'Combo Setting'];
     const rows = activitiesCache.map(a => [
       `"${a.id}"`,
       `"${a.dateStr}"`,
@@ -236,6 +268,7 @@ window.EvoriaDB = (function () {
       `"${a.userEmail}"`,
       `"${a.userName}"`,
       `"${a.platform}"`,
+      `"${a.fileName || 'Labels.pdf'}"`,
       `"${a.type}"`,
       a.labelCount,
       a.skuCount,
@@ -248,7 +281,46 @@ window.EvoriaDB = (function () {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `EvoriaBloom_Database_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `EvoriaBloom_Activity_History_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
+  /**
+   * Export registered users list to CSV (Admin Only)
+   */
+  function exportUsersCSV() {
+    init();
+    const active = getActiveUser();
+    if (!isAdmin(active)) {
+      alert('⚠️ Users List Export is exclusively available to Admin (viraltada2001@gmail.com).');
+      return;
+    }
+
+    if (usersCache.length === 0) {
+      alert('No registered users found.');
+      return;
+    }
+
+    const headers = ['Name', 'Email', 'Role', 'Registered Date', 'Last Active', 'Total Batches', 'Total Labels'];
+    const rows = usersCache.map(u => [
+      `"${u.displayName || ''}"`,
+      `"${u.email || ''}"`,
+      `"${u.role || 'seller'}"`,
+      `"${u.registeredAt || u.lastLoginAt || ''}"`,
+      `"${u.lastActiveAt || u.lastLoginAt || ''}"`,
+      u.totalBatches || 0,
+      u.totalLabels || 0
+    ]);
+
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `EvoriaBloom_Users_List_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -260,7 +332,7 @@ window.EvoriaDB = (function () {
    */
   function clearActivities() {
     if (!isAdmin(getActiveUser())) {
-      alert('⚠️ Clear History ફક્ત Admin માટે જ ઉપલબ્ધ છે.');
+      alert('⚠️ Clear History is restricted to Admin only.');
       return;
     }
     activitiesCache = [];
@@ -286,12 +358,14 @@ window.EvoriaDB = (function () {
     init,
     isAdmin,
     saveUser,
+    getUsers,
     getActiveUser,
     setActiveUser,
     logActivity,
     getActivities,
     getStats,
     exportToCSV,
+    exportUsersCSV,
     clearActivities,
     getCloudWebhookUrl,
     setCloudWebhookUrl

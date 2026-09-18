@@ -58,20 +58,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const navLogoutBtn = document.getElementById('nav-logout-btn');
   const userBadgeEmail = document.getElementById('user-badge-email');
 
-  // Database Modal Elements
+  // Admin Panel & Database Elements
   const navDatabaseBtn = document.getElementById('nav-database-btn');
   const navDbCountBadge = document.getElementById('nav-db-count-badge');
   const databaseModal = document.getElementById('database-modal');
   const closeDatabaseModalBtn = document.getElementById('close-database-modal-btn');
   const closeDatabaseModalBottomBtn = document.getElementById('close-database-modal-bottom-btn');
+  const dbStatTotalUsers = document.getElementById('db-stat-total-users');
   const dbStatTotalLabels = document.getElementById('db-stat-total-labels');
   const dbStatTotalBatches = document.getElementById('db-stat-total-batches');
+  const adminTabUsersBtn = document.getElementById('admin-tab-users-btn');
+  const adminTabActivitiesBtn = document.getElementById('admin-tab-activities-btn');
+  const adminUsersBadgeCount = document.getElementById('admin-users-badge-count');
+  const adminActivitiesBadgeCount = document.getElementById('admin-activities-badge-count');
+  const adminExportUsersBtn = document.getElementById('admin-export-users-btn');
   const dbExportCsvBtn = document.getElementById('db-export-csv-btn');
-  const dbToggleCloudBtn = document.getElementById('db-toggle-cloud-btn');
   const dbClearHistoryBtn = document.getElementById('db-clear-history-btn');
-  const dbCloudPanel = document.getElementById('db-cloud-panel');
-  const dbCloudWebhookInput = document.getElementById('db-cloud-webhook-input');
-  const dbSaveWebhookBtn = document.getElementById('db-save-webhook-btn');
+  const adminViewUsers = document.getElementById('admin-view-users');
+  const adminViewActivities = document.getElementById('admin-view-activities');
+  const adminUsersTableBody = document.getElementById('admin-users-table-body');
   const dbActivityTableBody = document.getElementById('db-activity-table-body');
 
   // Firebase Config Modal Elements
@@ -250,12 +255,12 @@ document.addEventListener('DOMContentLoaded', () => {
         gateGoogleLoginBtn.disabled = true;
         gateGoogleLoginBtn.classList.add('opacity-75', 'cursor-wait');
       }
-      showToast('📱 Google Sign-In શરૂ થઈ રહ્યું છે...');
+      showToast('📱 Initiating Google Sign-In...');
       const user = await window.EvoriaAuth.loginWithGoogle();
       if (user) {
         updateAuthUI(user);
         if (isAdmin(user)) {
-          showToast(`👑 સ્વાગત છે, Viral Tada! Admin Access Unlocked.`);
+          showToast(`👑 Welcome, Viral Tada! Admin Access Unlocked.`);
         } else {
           showToast(`👋 Welcome, ${user.displayName || 'Seller'}! Tool unlocked.`);
         }
@@ -282,37 +287,146 @@ document.addEventListener('DOMContentLoaded', () => {
         window.EvoriaDB.setActiveUser(null);
       }
       updateAuthUI(null);
-      showToast('સફળતાપૂર્વક Logout થઈ ગયું.');
+      showToast('Successfully logged out.');
     });
   }
 
   // ==========================================
-  // Database & History Controllers
+  // Admin Panel & History Controllers
   // ==========================================
   function updateDatabaseBadge() {
     if (!window.EvoriaDB || !navDbCountBadge) return;
     const stats = window.EvoriaDB.getStats();
-    navDbCountBadge.textContent = stats.totalBatches;
+    navDbCountBadge.textContent = `${stats.totalUsers || 1} Users`;
   }
 
-  function openDatabaseModal() {
+  function switchAdminTab(tab) {
+    if (tab === 'users') {
+      if (adminTabUsersBtn) {
+        adminTabUsersBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm flex items-center gap-1.5 transition-all';
+      }
+      if (adminTabActivitiesBtn) {
+        adminTabActivitiesBtn.className = 'px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-all';
+      }
+      if (adminViewUsers) adminViewUsers.classList.remove('hidden');
+      if (adminViewActivities) adminViewActivities.classList.add('hidden');
+    } else {
+      if (adminTabActivitiesBtn) {
+        adminTabActivitiesBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-sm flex items-center gap-1.5 transition-all';
+      }
+      if (adminTabUsersBtn) {
+        adminTabUsersBtn.className = 'px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 transition-all';
+      }
+      if (adminViewActivities) adminViewActivities.classList.remove('hidden');
+      if (adminViewUsers) adminViewUsers.classList.add('hidden');
+    }
+  }
+
+  async function openDatabaseModal() {
     if (!isAdmin(state.currentUser)) {
-      alert(`⚠️ આ ડેટાબેઝ ફક્ત Admin (${ADMIN_EMAIL}) માટે જ ઉપલબ્ધ છે.`);
+      alert(`⚠️ This Admin Panel is exclusively accessible to Admin (${ADMIN_EMAIL}).`);
       return;
     }
     if (!window.EvoriaDB || !databaseModal) return;
-    const stats = window.EvoriaDB.getStats();
-    const activities = window.EvoriaDB.getActivities();
 
+    let users = window.EvoriaDB.getUsers();
+    let activities = window.EvoriaDB.getActivities();
+
+    // Fetch from Firestore if connected to get cloud registered users
+    if (window.EvoriaAuth && window.EvoriaAuth.fetchAllUsers) {
+      try {
+        const firestoreUsers = await window.EvoriaAuth.fetchAllUsers();
+        if (firestoreUsers && firestoreUsers.length > 0) {
+          firestoreUsers.forEach(fu => {
+            if (!users.some(u => (u.email || '').toLowerCase() === (fu.email || '').toLowerCase())) {
+              users.push({
+                displayName: fu.displayName,
+                email: fu.email,
+                photoURL: fu.photoURL || '',
+                role: (fu.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'seller',
+                lastLoginAt: fu.lastLoginAt ? new Date(fu.lastLoginAt.toDate ? fu.lastLoginAt.toDate() : fu.lastLoginAt).toISOString() : new Date().toISOString()
+              });
+            }
+          });
+        }
+      } catch (e) {}
+    }
+
+    // Fetch from Firestore if connected to get cloud activities (what PDFs are used)
+    if (window.EvoriaAuth && window.EvoriaAuth.fetchAllActivities) {
+      try {
+        const cloudActs = await window.EvoriaAuth.fetchAllActivities();
+        if (cloudActs && cloudActs.length > 0) {
+          cloudActs.forEach(ca => {
+            if (!activities.some(a => a.id === ca.id)) {
+              const dt = ca.timestamp && ca.timestamp.toDate ? ca.timestamp.toDate() : new Date();
+              activities.unshift({
+                id: ca.id,
+                dateStr: ca.timestampStr ? ca.timestampStr.split(',')[0] : dt.toLocaleDateString('en-GB'),
+                timeStr: dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                userEmail: ca.userEmail || '',
+                userName: ca.userName || 'Seller',
+                platform: (ca.platform || 'meesho').toUpperCase(),
+                fileName: ca.fileName || 'Labels.pdf',
+                labelCount: ca.labelCount || ca.totalLabels || 0,
+                skuCount: ca.skuCount || 0,
+                type: ca.type || 'PDF Processing'
+              });
+            }
+          });
+        }
+      } catch (e) {}
+    }
+
+    const stats = window.EvoriaDB.getStats();
+
+    if (dbStatTotalUsers) dbStatTotalUsers.textContent = users.length;
     if (dbStatTotalLabels) dbStatTotalLabels.textContent = stats.totalLabels;
     if (dbStatTotalBatches) dbStatTotalBatches.textContent = stats.totalBatches;
-    if (dbCloudWebhookInput) dbCloudWebhookInput.value = window.EvoriaDB.getCloudWebhookUrl() || '';
+    if (adminUsersBadgeCount) adminUsersBadgeCount.textContent = users.length;
+    if (adminActivitiesBadgeCount) adminActivitiesBadgeCount.textContent = activities.length;
 
+    // Render Tab 1: Registered Users Table
+    if (adminUsersTableBody) {
+      if (users.length === 0) {
+        adminUsersTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="p-8 text-center text-slate-400">No registered sellers found.</td>
+          </tr>
+        `;
+      } else {
+        adminUsersTableBody.innerHTML = users.map(u => {
+          const isUserAdmin = (u.email || '').toLowerCase().trim() === ADMIN_EMAIL.toLowerCase();
+          const roleBadge = isUserAdmin
+            ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">👑 Admin</span>`
+            : `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">Seller</span>`;
+
+          const avatarUrl = u.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(u.displayName || u.email || 'User')}`;
+          const lastActiveStr = u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleString() : (u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Recent');
+
+          return `
+            <tr class="hover:bg-slate-50/80 transition-colors">
+              <td class="p-2.5 flex items-center gap-2">
+                <img src="${avatarUrl}" class="w-6 h-6 rounded-full border border-slate-200 object-cover" alt="User">
+                <span class="font-bold text-slate-900 truncate max-w-[140px]">${u.displayName || 'Seller'}</span>
+              </td>
+              <td class="p-2.5 font-mono text-[11px] text-slate-600">${u.email || ''}</td>
+              <td class="p-2.5">${roleBadge}</td>
+              <td class="p-2.5 text-slate-400 text-[11px]">${lastActiveStr}</td>
+              <td class="p-2.5 text-center font-bold text-slate-900">${u.totalLabels || 0}</td>
+              <td class="p-2.5 text-center font-mono text-slate-600">${u.totalBatches || 0}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    // Render Tab 2: Activity Logs Table (What PDFs are being used)
     if (dbActivityTableBody) {
       if (activities.length === 0) {
         dbActivityTableBody.innerHTML = `
           <tr>
-            <td colspan="6" class="p-8 text-center text-slate-400">
+            <td colspan="7" class="p-8 text-center text-slate-400">
               No label batches processed yet. Upload and crop labels to see records here!
             </td>
           </tr>
@@ -326,12 +440,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             return `
               <tr class="hover:bg-slate-50/80 transition-colors">
-                <td class="p-2.5 font-mono text-[11px] text-slate-500">${a.dateStr} <span class="text-slate-400">${a.timeStr}</span></td>
+                <td class="p-2.5 font-mono text-[11px] text-slate-500 whitespace-nowrap">${a.dateStr} <span class="text-slate-400">${a.timeStr}</span></td>
+                <td class="p-2.5 text-slate-700 text-xs truncate max-w-[140px]" title="${a.userEmail}">
+                  <div class="font-bold text-slate-900 truncate">${a.userName || 'Seller'}</div>
+                  <div class="text-[10px] font-mono text-slate-400 truncate">${a.userEmail || ''}</div>
+                </td>
                 <td class="p-2.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor}">${a.platform}</span></td>
+                <td class="p-2.5 text-slate-700 text-[11px] font-mono truncate max-w-[140px]" title="${a.fileName || 'Labels.pdf'}">
+                  📄 ${a.fileName || 'Labels.pdf'}
+                </td>
                 <td class="p-2.5 text-center font-bold text-slate-900">${a.labelCount}</td>
                 <td class="p-2.5 text-center font-mono text-slate-600">${a.skuCount}</td>
                 <td class="p-2.5 text-slate-600 text-[11px] font-medium">${a.type}</td>
-                <td class="p-2.5 text-slate-400 text-[10px] truncate max-w-[120px]" title="${a.userEmail}">${a.userName}</td>
               </tr>
             `;
           })
@@ -339,6 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    switchAdminTab('users');
     databaseModal.classList.remove('hidden');
   }
 
@@ -350,36 +471,33 @@ document.addEventListener('DOMContentLoaded', () => {
   if (closeDatabaseModalBtn) closeDatabaseModalBtn.addEventListener('click', closeDatabaseModal);
   if (closeDatabaseModalBottomBtn) closeDatabaseModalBottomBtn.addEventListener('click', closeDatabaseModal);
 
+  if (adminTabUsersBtn) {
+    adminTabUsersBtn.addEventListener('click', () => switchAdminTab('users'));
+  }
+  if (adminTabActivitiesBtn) {
+    adminTabActivitiesBtn.addEventListener('click', () => switchAdminTab('activities'));
+  }
+
+  if (adminExportUsersBtn) {
+    adminExportUsersBtn.addEventListener('click', () => {
+      if (window.EvoriaDB) window.EvoriaDB.exportUsersCSV();
+    });
+  }
+
   if (dbExportCsvBtn) {
     dbExportCsvBtn.addEventListener('click', () => {
       if (window.EvoriaDB) window.EvoriaDB.exportToCSV();
     });
   }
 
-  if (dbToggleCloudBtn && dbCloudPanel) {
-    dbToggleCloudBtn.addEventListener('click', () => {
-      dbCloudPanel.classList.toggle('hidden');
-    });
-  }
-
-  if (dbSaveWebhookBtn && dbCloudWebhookInput) {
-    dbSaveWebhookBtn.addEventListener('click', () => {
-      const url = dbCloudWebhookInput.value.trim();
-      if (window.EvoriaDB) {
-        window.EvoriaDB.setCloudWebhookUrl(url);
-        showToast('✅ Google Sheets Sync URL saved!');
-      }
-    });
-  }
-
   if (dbClearHistoryBtn) {
     dbClearHistoryBtn.addEventListener('click', () => {
-      if (confirm('Are you sure you want to clear all stored activity records?')) {
+      if (confirm('Are you sure you want to clear all stored PDF processing records?')) {
         if (window.EvoriaDB) {
           window.EvoriaDB.clearActivities();
           openDatabaseModal();
           updateDatabaseBadge();
-          showToast('Database history cleared.');
+          showToast('PDF processing history cleared.');
         }
       }
     });
@@ -397,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Firebase Config Modal Handlers
   function openFirebaseConfigModal() {
     if (!isAdmin(state.currentUser)) {
-      alert(`⚠️ Firebase Settings ફક્ત Admin (${ADMIN_EMAIL}) જ બદલી શકે છે.`);
+      alert(`⚠️ Firebase Settings can only be modified by Admin (${ADMIN_EMAIL}).`);
       return;
     }
     if (!window.EvoriaFirebaseConfig || !firebaseConfigModal) return;
@@ -432,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
       };
 
       if (!newCfg.apiKey || !newCfg.projectId) {
-        alert('કૃપા કરીને API Key અને Project ID દાખલ કરો.');
+        alert('Please enter both API Key and Project ID.');
         return;
       }
 
@@ -447,7 +565,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (resetFirebaseConfigBtn) {
     resetFirebaseConfigBtn.addEventListener('click', () => {
-      if (confirm('શું તમે ડિફોલ્ટ Firebase સેટિંગ્સ રિસ્ટોર કરવા માંગો છો?')) {
+      if (confirm('Are you sure you want to restore default Firebase settings?')) {
         localStorage.removeItem('evoriabloom_firebase_config');
         openFirebaseConfigModal();
         showToast('Default settings restored.');
@@ -567,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function handleSelectedFiles(files) {
     if (!state.currentUser) {
-      alert('કૃપા કરીને પહેલાં Google Login કરો. લોગિન વગર EvoriaBloom ટૂલ વાપરી શકાશે નહીં.');
+      alert('Please Sign In with Google first. EvoriaBloom tools require a free login.');
       triggerGoogleLogin();
       return;
     }
@@ -615,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   uploadPrepareBtn.addEventListener('click', async () => {
     if (!state.currentUser) {
-      alert('કૃપા કરીને પહેલાં Google Login કરો.');
+      alert('Please Sign In with Google first to process labels.');
       triggerGoogleLogin();
       return;
     }
@@ -628,7 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   trySampleBtn.addEventListener('click', async () => {
     if (!state.currentUser) {
-      alert('કૃપા કરીને પહેલાં Google Login કરો. લોગિન વગર EvoriaBloom ટૂલ વાપરી શકાશે નહીં.');
+      alert('Please Sign In with Google first. EvoriaBloom tools require a free login.');
       triggerGoogleLogin();
       return;
     }
@@ -1237,7 +1355,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   generatePdfBtn.addEventListener('click', async () => {
     if (!state.currentUser) {
-      alert('કૃપા કરીને પહેલાં Google Login કરો. લોગિન વગર EvoriaBloom ટૂલ વાપરી શકાશે નહીં.');
+      alert('Please Sign In with Google first. EvoriaBloom tools require a free login.');
       triggerGoogleLogin();
       return;
     }
@@ -1285,10 +1403,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.confetti) window.confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
         showToast(`🎉 Successfully generated ${downloadCount} separate PDFs (Single & Combo)!`);
 
+        const activeFileNames = (state.uploadedFiles && state.uploadedFiles.length > 0)
+          ? state.uploadedFiles.map(f => f.name).join(', ')
+          : 'Labels.pdf';
+
         // Log Activity to Free EvoriaDB & Cloud Sync
         if (window.EvoriaDB) {
           window.EvoriaDB.logActivity({
             type: 'Split PDF Generation',
+            fileName: activeFileNames,
             platform: state.platform,
             labelCount: state.orders.length,
             skuCount: state.skuSummary.length,
@@ -1301,9 +1424,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Log Activity to Firestore Database
         if (window.EvoriaAuth && state.currentUser) {
           window.EvoriaAuth.logActivity(state.currentUser.uid, {
-            type: 'split_pdf_generated',
+            type: 'Split PDF Generation',
+            fileName: activeFileNames,
+            userEmail: state.currentUser.email || '',
+            userName: state.currentUser.displayName || 'Seller',
             platform: state.platform,
             totalLabels: state.orders.length,
+            labelCount: state.orders.length,
             singleCount: result.singleCount,
             comboCount: result.comboCount,
             skuCount: state.skuSummary.length,
@@ -1334,10 +1461,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.confetti) window.confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         showToast('🎉 Print-ready sorted PDF downloaded successfully!');
 
+        const activeFileNames = (state.uploadedFiles && state.uploadedFiles.length > 0)
+          ? state.uploadedFiles.map(f => f.name).join(', ')
+          : 'Labels.pdf';
+
         // Log Activity to Free EvoriaDB & Cloud Sync
         if (window.EvoriaDB) {
           window.EvoriaDB.logActivity({
             type: 'Sorted PDF Generation',
+            fileName: activeFileNames,
             platform: state.platform,
             labelCount: state.orders.length,
             skuCount: state.skuSummary.length,
@@ -1350,7 +1482,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Log Activity to Firestore Database
         if (window.EvoriaAuth && state.currentUser) {
           window.EvoriaAuth.logActivity(state.currentUser.uid, {
-            type: 'sorted_pdf_generated',
+            type: 'Sorted PDF Generation',
+            fileName: activeFileNames,
+            userEmail: state.currentUser.email || '',
+            userName: state.currentUser.displayName || 'Seller',
             platform: state.platform,
             labelCount: state.orders.length,
             skuCount: state.skuSummary.length,
@@ -1373,7 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (downloadPicklistBtn) {
     downloadPicklistBtn.addEventListener('click', async () => {
       if (!state.currentUser) {
-        alert('કૃપા કરીને પહેલાં Google Login કરો.');
+        alert('Please Sign In with Google first to download the warehouse pick list.');
         triggerGoogleLogin();
         return;
       }
@@ -1400,10 +1535,15 @@ document.addEventListener('DOMContentLoaded', () => {
         hideProgress();
         showToast('📋 Warehouse SKU Pick List downloaded!');
 
+        const activeFileNames = (state.uploadedFiles && state.uploadedFiles.length > 0)
+          ? state.uploadedFiles.map(f => f.name).join(', ')
+          : 'Labels.pdf';
+
         // Log Activity to Free EvoriaDB & Cloud Sync
         if (window.EvoriaDB) {
           window.EvoriaDB.logActivity({
             type: 'SKU Picklist Download',
+            fileName: activeFileNames,
             platform: state.platform,
             labelCount: state.orders.length,
             skuCount: state.skuSummary.length
@@ -1414,7 +1554,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Log Activity to Firestore Database
         if (window.EvoriaAuth && state.currentUser) {
           window.EvoriaAuth.logActivity(state.currentUser.uid, {
-            type: 'picklist_downloaded',
+            type: 'SKU Picklist Download',
+            fileName: activeFileNames,
+            userEmail: state.currentUser.email || '',
+            userName: state.currentUser.displayName || 'Seller',
             platform: state.platform,
             labelCount: state.orders.length,
             skuCount: state.skuSummary.length,
