@@ -241,11 +241,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Login Handlers (All Google users welcome)
+  // Login Handlers (All Google users welcome - Mobile Redirect & Desktop Popup)
   async function triggerGoogleLogin() {
     if (!window.EvoriaAuth) return;
+    const originalText = gateGoogleLoginBtn ? gateGoogleLoginBtn.innerHTML : '';
     try {
-      showToast('Google Sign-In કનેક્ટ થઈ રહ્યું છે...');
+      if (gateGoogleLoginBtn) {
+        gateGoogleLoginBtn.disabled = true;
+        gateGoogleLoginBtn.classList.add('opacity-75', 'cursor-wait');
+      }
+      showToast('📱 Google Sign-In શરૂ થઈ રહ્યું છે...');
       const user = await window.EvoriaAuth.loginWithGoogle();
       if (user) {
         updateAuthUI(user);
@@ -257,6 +262,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.error('Login error:', err);
+    } finally {
+      if (gateGoogleLoginBtn) {
+        gateGoogleLoginBtn.disabled = false;
+        gateGoogleLoginBtn.classList.remove('opacity-75', 'cursor-wait');
+      }
     }
   }
 

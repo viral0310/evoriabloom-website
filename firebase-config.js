@@ -53,6 +53,15 @@ window.EvoriaAuth = (function () {
   let db = null;
   let isConfigured = false;
 
+  function isMobileDevice() {
+    return /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.innerWidth <= 768);
+  }
+
+  function isInAppBrowser() {
+    const ua = navigator.userAgent || navigator.vendor || window.opera || '';
+    return /FBAN|FBAV|Instagram|WhatsApp|Line|MicroMessenger|musical_ly/i.test(ua);
+  }
+
   function init() {
     if (!window.firebase) {
       console.error('Firebase SDK not loaded.');
@@ -77,6 +86,25 @@ window.EvoriaAuth = (function () {
       }
       auth = firebase.auth();
       db = firebase.firestore();
+
+      // Handle Mobile Sign-In Redirect Result
+      auth.getRedirectResult().then(async result => {
+        if (result && result.user) {
+          console.info('Mobile Redirect sign-in success:', result.user.email);
+          await saveUserToDatabase(result.user);
+          if (window._authChangeCallback) {
+            window._authChangeCallback(result.user);
+          }
+        }
+      }).catch(err => {
+        console.error('getRedirectResult note:', err);
+        if (err.code === 'auth/unauthorized-domain') {
+          alert('Firebase Authorized Domains નોંધ:\nતમારા Firebase Console -> Authentication -> Settings -> Authorized Domains માં "' + window.location.hostname + '" ઉમેરો.');
+        } else if (err.code && err.code !== 'auth/null-user') {
+          alert('Mobile Sign-in Error: ' + err.message);
+        }
+      });
+
       return true;
     } catch (err) {
       console.warn('Firebase initialization note:', err.message);
@@ -85,7 +113,7 @@ window.EvoriaAuth = (function () {
   }
 
   /**
-   * Sign In With Google Popup
+   * Sign In With Google (Mobile Redirect + Desktop Popup Support)
    */
   async function loginWithGoogle() {
     if (!auth) {
@@ -99,11 +127,32 @@ window.EvoriaAuth = (function () {
       return null;
     }
 
+    if (isInAppBrowser()) {
+      alert(
+        "📱 ધ્યાન આપો:\n\n" +
+        "તમે WhatsApp / Instagram ના અંદરના બ્રાઉઝરમાં છો.\nGoogle અહીંથી લૉગિન બ્લૉક કરે છે.\n\n" +
+        "કૃપા કરીને ઉપર 3 ટપકાં (⋮) અથવા શેર પર ક્લિક કરીને 'Open in Chrome' અથવા 'Open in Safari' પસંદ કરો."
+      );
+    }
+
+    const provider = new firebase.auth.GoogleAuthProvider();
+    provider.addScope('profile');
+    provider.addScope('email');
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    // On mobile devices, always use Redirect because popups fail / get blocked on mobile browsers
+    if (isMobileDevice()) {
+      try {
+        console.info('Mobile browser detected: using signInWithRedirect...');
+        await auth.signInWithRedirect(provider);
+        return null;
+      } catch (redirectError) {
+        console.warn('signInWithRedirect error, trying popup:', redirectError);
+      }
+    }
+
+    // On Desktop or fallback: try popup first
     try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.addScope('profile');
-      provider.addScope('email');
-      provider.setCustomParameters({ prompt: 'select_account' });
       const result = await auth.signInWithPopup(provider);
       const user = result.user;
 
@@ -113,10 +162,17 @@ window.EvoriaAuth = (function () {
       return user;
     } catch (error) {
       console.error('Google Sign-In Error:', error);
-      if (error.code === 'auth/unauthorized-domain') {
-        alert('Firebase સેટિંગ નોંધ: તમારા Firebase Console -> Authentication -> Settings -> Authorized Domains માં "orealuxe.in" ઉમેરવું પડશે.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        console.info('Google Sign-in popup was closed by user.');
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        // Fallback to redirect if popup is blocked
+        console.info('Popup blocked/closed, falling back to signInWithRedirect...');
+        try {
+          await auth.signInWithRedirect(provider);
+          return null;
+        } catch (e) {
+          alert('Login Redirect Error: ' + e.message);
+        }
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert('Firebase સેટિંગ નોંધ: તમારા Firebase Console -> Authentication -> Settings -> Authorized Domains માં "' + window.location.hostname + '" ઉમેરવું પડશે.');
       } else {
         alert('Google Login: ' + error.message);
       }

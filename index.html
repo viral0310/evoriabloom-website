@@ -6,6 +6,13 @@
   <title>EvoriaBloom - Free Shipping Label Crop & SKU Sort Tool (Meesho, Amazon, Flipkart)</title>
   <meta name="description" content="Free online tool for Meesho, Amazon, and Flipkart sellers to crop invoice from shipping labels, sort orders by SKU or courier, and generate clean thermal print PDFs in seconds. 100% private in-browser.">
 
+  <!-- Force HTTPS in production (Required for Google Auth on Mobile) -->
+  <script>
+    if (location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      location.replace('https:' + location.href.substring(location.protocol.length));
+    }
+  </script>
+
   <!-- Google Fonts: Plus Jakarta Sans & Inter -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
