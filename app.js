@@ -23,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
     customMessageEnabled: false,
     customMessageText: 'Thank you for your order! - EvoriaBloom',
     isProcessing: false,
-    sortableInstance: null
+    sortableInstance: null,
+    currentUser: null
   };
 
   // DOM Elements
@@ -45,6 +46,50 @@ document.addEventListener('DOMContentLoaded', () => {
   const dropzonePlatformName = document.getElementById('dropzone-platform-name');
   const selectedFilesList = document.getElementById('selected-files-list');
   const trySampleBtn = document.getElementById('try-sample-btn');
+
+  // Auth & Profile Elements
+  const authGateCard = document.getElementById('auth-gate-card');
+  const uploadCardWrapper = document.getElementById('upload-card-wrapper');
+  const gateGoogleLoginBtn = document.getElementById('gate-google-login-btn');
+  const gateInstantSellerBtn = document.getElementById('gate-instant-seller-btn');
+  const navGoogleLoginBtn = document.getElementById('nav-google-login-btn');
+  const navUserProfile = document.getElementById('nav-user-profile');
+  const navUserAvatar = document.getElementById('nav-user-avatar');
+  const navUserName = document.getElementById('nav-user-name');
+  const navLogoutBtn = document.getElementById('nav-logout-btn');
+  const userBadgeEmail = document.getElementById('user-badge-email');
+
+  // Database Modal Elements
+  const navDatabaseBtn = document.getElementById('nav-database-btn');
+  const navDbCountBadge = document.getElementById('nav-db-count-badge');
+  const databaseModal = document.getElementById('database-modal');
+  const closeDatabaseModalBtn = document.getElementById('close-database-modal-btn');
+  const closeDatabaseModalBottomBtn = document.getElementById('close-database-modal-bottom-btn');
+  const dbStatTotalLabels = document.getElementById('db-stat-total-labels');
+  const dbStatTotalBatches = document.getElementById('db-stat-total-batches');
+  const dbExportCsvBtn = document.getElementById('db-export-csv-btn');
+  const dbToggleCloudBtn = document.getElementById('db-toggle-cloud-btn');
+  const dbClearHistoryBtn = document.getElementById('db-clear-history-btn');
+  const dbCloudPanel = document.getElementById('db-cloud-panel');
+  const dbCloudWebhookInput = document.getElementById('db-cloud-webhook-input');
+  const dbSaveWebhookBtn = document.getElementById('db-save-webhook-btn');
+  const dbActivityTableBody = document.getElementById('db-activity-table-body');
+
+  // Firebase Config Modal Elements
+  const firebaseConfigModal = document.getElementById('firebase-config-modal');
+  const closeFirebaseConfigBtn = document.getElementById('close-firebase-config-btn');
+  const cancelFirebaseConfigBtn = document.getElementById('cancel-firebase-config-btn');
+  const saveFirebaseConfigBtn = document.getElementById('save-firebase-config-btn');
+  const resetFirebaseConfigBtn = document.getElementById('reset-firebase-config-btn');
+  const gateFirebaseConfigBtn = document.getElementById('gate-firebase-config-btn');
+  const uploadFirebaseConfigBtn = document.getElementById('upload-firebase-config-btn');
+
+  const fbCfgApiKey = document.getElementById('fb-cfg-apiKey');
+  const fbCfgAuthDomain = document.getElementById('fb-cfg-authDomain');
+  const fbCfgProjectId = document.getElementById('fb-cfg-projectId');
+  const fbCfgStorageBucket = document.getElementById('fb-cfg-storageBucket');
+  const fbCfgMessagingSenderId = document.getElementById('fb-cfg-messagingSenderId');
+  const fbCfgAppId = document.getElementById('fb-cfg-appId');
 
   // Workspace Stats
   const statLabelsCount = document.getElementById('stat-labels-count');
@@ -106,6 +151,266 @@ document.addEventListener('DOMContentLoaded', () => {
   const infoModalTitle = document.getElementById('info-modal-title');
   const infoModalContent = document.getElementById('info-modal-content');
   const closeInfoModalBtn = document.getElementById('close-info-modal');
+
+  // ==========================================
+  // 0. Firebase Authentication & Protection
+  // ==========================================
+  function updateAuthUI(user) {
+    state.currentUser = user;
+
+    if (user) {
+      if (authGateCard) authGateCard.classList.add('hidden');
+      if (uploadCardWrapper) uploadCardWrapper.classList.remove('hidden');
+      if (navGoogleLoginBtn) navGoogleLoginBtn.classList.add('hidden');
+      if (navUserProfile) navUserProfile.classList.remove('hidden');
+      if (navUserAvatar) {
+        navUserAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.displayName || 'Seller')}`;
+      }
+      if (navUserName) navUserName.textContent = user.displayName || user.email || 'Seller';
+      if (userBadgeEmail) userBadgeEmail.textContent = user.email || user.displayName || '';
+    } else {
+      if (authGateCard) authGateCard.classList.remove('hidden');
+      if (uploadCardWrapper) uploadCardWrapper.classList.add('hidden');
+      if (navGoogleLoginBtn) navGoogleLoginBtn.classList.remove('hidden');
+      if (navUserProfile) navUserProfile.classList.add('hidden');
+      if (userBadgeEmail) userBadgeEmail.textContent = '';
+
+      // If user was inside workspace, kick back to upload section to enforce login gate
+      if (workspaceSection && !workspaceSection.classList.contains('hidden')) {
+        workspaceSection.classList.add('hidden');
+        uploadSection.classList.remove('hidden');
+        state.orders = [];
+        state.uploadedFiles = [];
+        state.sourceFiles = [];
+        if (selectedFilesList) {
+          selectedFilesList.classList.add('hidden');
+          selectedFilesList.innerHTML = '';
+        }
+        if (uploadPrepareBtn) {
+          uploadPrepareBtn.disabled = true;
+          uploadPrepareBtn.className = 'mt-5 w-full py-3.5 px-6 rounded-xl font-semibold text-slate-400 bg-slate-200 transition-all cursor-not-allowed text-sm';
+        }
+      }
+    }
+  }
+
+  // Initialize Firebase Auth
+  if (window.EvoriaAuth) {
+    window.EvoriaAuth.init();
+    window.EvoriaAuth.onAuthChange(user => {
+      updateAuthUI(user);
+    });
+  }
+
+  // Login Handlers
+  async function triggerGoogleLogin() {
+    if (!window.EvoriaAuth) return;
+    try {
+      showToast('Connecting with Google Sign-In...');
+      const user = await window.EvoriaAuth.loginWithGoogle();
+      if (user) {
+        updateAuthUI(user);
+        showToast(`👋 Welcome, ${user.displayName || 'Seller'}! Tool is now unlocked.`);
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+    }
+  }
+
+  if (gateGoogleLoginBtn) gateGoogleLoginBtn.addEventListener('click', triggerGoogleLogin);
+  if (navGoogleLoginBtn) navGoogleLoginBtn.addEventListener('click', triggerGoogleLogin);
+
+  // 1-Click Instant Seller Access for orealuxe.in
+  if (gateInstantSellerBtn) {
+    gateInstantSellerBtn.addEventListener('click', () => {
+      const storeOwner = {
+        uid: 'seller_viral_0310',
+        displayName: 'Viral (Store Owner)',
+        email: 'seller@orealuxe.in',
+        photoURL: 'https://api.dicebear.com/7.x/bottts/svg?seed=Viral0310'
+      };
+      if (window.EvoriaDB) {
+        window.EvoriaDB.saveUser(storeOwner);
+        window.EvoriaDB.setActiveUser(storeOwner);
+      }
+      updateAuthUI(storeOwner);
+      showToast('⚡ Welcome back, Viral! Tool unlocked for orealuxe.in');
+    });
+  }
+
+  if (navLogoutBtn) {
+    navLogoutBtn.addEventListener('click', async () => {
+      if (window.EvoriaAuth) {
+        await window.EvoriaAuth.logout();
+      }
+      if (window.EvoriaDB) {
+        window.EvoriaDB.setActiveUser(null);
+      }
+      updateAuthUI(null);
+      showToast('Logged out successfully.');
+    });
+  }
+
+  // ==========================================
+  // Database & History Controllers
+  // ==========================================
+  function updateDatabaseBadge() {
+    if (!window.EvoriaDB || !navDbCountBadge) return;
+    const stats = window.EvoriaDB.getStats();
+    navDbCountBadge.textContent = stats.totalBatches;
+  }
+
+  function openDatabaseModal() {
+    if (!window.EvoriaDB || !databaseModal) return;
+    const stats = window.EvoriaDB.getStats();
+    const activities = window.EvoriaDB.getActivities();
+
+    if (dbStatTotalLabels) dbStatTotalLabels.textContent = stats.totalLabels;
+    if (dbStatTotalBatches) dbStatTotalBatches.textContent = stats.totalBatches;
+    if (dbCloudWebhookInput) dbCloudWebhookInput.value = window.EvoriaDB.getCloudWebhookUrl() || '';
+
+    if (dbActivityTableBody) {
+      if (activities.length === 0) {
+        dbActivityTableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="p-8 text-center text-slate-400">
+              No label batches processed yet. Upload and crop labels to see records here!
+            </td>
+          </tr>
+        `;
+      } else {
+        dbActivityTableBody.innerHTML = activities
+          .map(a => {
+            let badgeColor = 'bg-pink-100 text-pink-700';
+            if (a.platform === 'AMAZON') badgeColor = 'bg-amber-100 text-amber-800';
+            if (a.platform === 'FLIPKART') badgeColor = 'bg-blue-100 text-blue-700';
+
+            return `
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="p-2.5 font-mono text-[11px] text-slate-500">${a.dateStr} <span class="text-slate-400">${a.timeStr}</span></td>
+                <td class="p-2.5"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor}">${a.platform}</span></td>
+                <td class="p-2.5 text-center font-bold text-slate-900">${a.labelCount}</td>
+                <td class="p-2.5 text-center font-mono text-slate-600">${a.skuCount}</td>
+                <td class="p-2.5 text-slate-600 text-[11px] font-medium">${a.type}</td>
+                <td class="p-2.5 text-slate-400 text-[10px] truncate max-w-[120px]" title="${a.userEmail}">${a.userName}</td>
+              </tr>
+            `;
+          })
+          .join('');
+      }
+    }
+
+    databaseModal.classList.remove('hidden');
+  }
+
+  function closeDatabaseModal() {
+    if (databaseModal) databaseModal.classList.add('hidden');
+  }
+
+  if (navDatabaseBtn) navDatabaseBtn.addEventListener('click', openDatabaseModal);
+  if (closeDatabaseModalBtn) closeDatabaseModalBtn.addEventListener('click', closeDatabaseModal);
+  if (closeDatabaseModalBottomBtn) closeDatabaseModalBottomBtn.addEventListener('click', closeDatabaseModal);
+
+  if (dbExportCsvBtn) {
+    dbExportCsvBtn.addEventListener('click', () => {
+      if (window.EvoriaDB) window.EvoriaDB.exportToCSV();
+    });
+  }
+
+  if (dbToggleCloudBtn && dbCloudPanel) {
+    dbToggleCloudBtn.addEventListener('click', () => {
+      dbCloudPanel.classList.toggle('hidden');
+    });
+  }
+
+  if (dbSaveWebhookBtn && dbCloudWebhookInput) {
+    dbSaveWebhookBtn.addEventListener('click', () => {
+      const url = dbCloudWebhookInput.value.trim();
+      if (window.EvoriaDB) {
+        window.EvoriaDB.setCloudWebhookUrl(url);
+        showToast('✅ Google Sheets Sync URL saved!');
+      }
+    });
+  }
+
+  if (dbClearHistoryBtn) {
+    dbClearHistoryBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to clear all stored activity records?')) {
+        if (window.EvoriaDB) {
+          window.EvoriaDB.clearActivities();
+          openDatabaseModal();
+          updateDatabaseBadge();
+          showToast('Database history cleared.');
+        }
+      }
+    });
+  }
+
+  // Check saved session on load
+  if (window.EvoriaDB) {
+    const savedUser = window.EvoriaDB.getActiveUser();
+    if (savedUser) {
+      updateAuthUI(savedUser);
+    }
+    updateDatabaseBadge();
+  }
+
+  // Firebase Config Modal Handlers
+  function openFirebaseConfigModal() {
+    if (!window.EvoriaFirebaseConfig || !firebaseConfigModal) return;
+    const cfg = window.EvoriaFirebaseConfig.getConfig();
+    if (fbCfgApiKey) fbCfgApiKey.value = cfg.apiKey || '';
+    if (fbCfgAuthDomain) fbCfgAuthDomain.value = cfg.authDomain || '';
+    if (fbCfgProjectId) fbCfgProjectId.value = cfg.projectId || '';
+    if (fbCfgStorageBucket) fbCfgStorageBucket.value = cfg.storageBucket || '';
+    if (fbCfgMessagingSenderId) fbCfgMessagingSenderId.value = cfg.messagingSenderId || '';
+    if (fbCfgAppId) fbCfgAppId.value = cfg.appId || '';
+    firebaseConfigModal.classList.remove('hidden');
+  }
+
+  function closeFirebaseConfigModal() {
+    if (firebaseConfigModal) firebaseConfigModal.classList.add('hidden');
+  }
+
+  if (gateFirebaseConfigBtn) gateFirebaseConfigBtn.addEventListener('click', openFirebaseConfigModal);
+  if (uploadFirebaseConfigBtn) uploadFirebaseConfigBtn.addEventListener('click', openFirebaseConfigModal);
+  if (closeFirebaseConfigBtn) closeFirebaseConfigBtn.addEventListener('click', closeFirebaseConfigModal);
+  if (cancelFirebaseConfigBtn) cancelFirebaseConfigBtn.addEventListener('click', closeFirebaseConfigModal);
+
+  if (saveFirebaseConfigBtn) {
+    saveFirebaseConfigBtn.addEventListener('click', () => {
+      const newCfg = {
+        apiKey: fbCfgApiKey.value.trim(),
+        authDomain: fbCfgAuthDomain.value.trim(),
+        projectId: fbCfgProjectId.value.trim(),
+        storageBucket: fbCfgStorageBucket.value.trim(),
+        messagingSenderId: fbCfgMessagingSenderId.value.trim(),
+        appId: fbCfgAppId.value.trim()
+      };
+
+      if (!newCfg.apiKey || !newCfg.projectId) {
+        alert('કૃપા કરીને API Key અને Project ID દાખલ કરો.');
+        return;
+      }
+
+      window.EvoriaFirebaseConfig.setCustomConfig(newCfg);
+      closeFirebaseConfigModal();
+      showToast('✅ Firebase Configuration Saved! Re-connecting...');
+      if (window.EvoriaAuth) {
+        window.EvoriaAuth.init();
+      }
+    });
+  }
+
+  if (resetFirebaseConfigBtn) {
+    resetFirebaseConfigBtn.addEventListener('click', () => {
+      if (confirm('શું તમે ડિફોલ્ટ Firebase સેટિંગ્સ રિસ્ટોર કરવા માંગો છો?')) {
+        localStorage.removeItem('evoriabloom_firebase_config');
+        openFirebaseConfigModal();
+        showToast('Default settings restored.');
+      }
+    });
+  }
 
   // Platform Content Dictionary
   const platformContent = {
@@ -218,6 +523,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function handleSelectedFiles(files) {
+    if (!state.currentUser) {
+      alert('કૃપા કરીને પહેલાં Google Login કરો. લોગિન વગર EvoriaBloom ટૂલ વાપરી શકાશે નહીં.');
+      triggerGoogleLogin();
+      return;
+    }
+
     const pdfFiles = files.filter(f => f.name.toLowerCase().endsWith('.pdf'));
     if (pdfFiles.length === 0) {
       alert('Please select valid PDF shipping label files.');
@@ -260,6 +571,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   uploadPrepareBtn.addEventListener('click', async () => {
+    if (!state.currentUser) {
+      alert('કૃપા કરીને પહેલાં Google Login કરો.');
+      triggerGoogleLogin();
+      return;
+    }
     if (state.uploadedFiles.length === 0) return;
     await processUploadedPdfFiles();
   });
@@ -268,6 +584,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Demo / Sample Labels Generator
   // ==========================================
   trySampleBtn.addEventListener('click', async () => {
+    if (!state.currentUser) {
+      alert('કૃપા કરીને પહેલાં Google Login કરો. લોગિન વગર EvoriaBloom ટૂલ વાપરી શકાશે નહીં.');
+      triggerGoogleLogin();
+      return;
+    }
+
     showProgress('Creating Sample Label PDF...', 10, 'Generating realistic sample labels for testing...');
 
     try {
@@ -871,6 +1193,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // 9. Generate & Download Sorted PDF
   // ==========================================
   generatePdfBtn.addEventListener('click', async () => {
+    if (!state.currentUser) {
+      alert('કૃપા કરીને પહેલાં Google Login કરો. લોગિન વગર EvoriaBloom ટૂલ વાપરી શકાશે નહીં.');
+      triggerGoogleLogin();
+      return;
+    }
+
     if (state.orders.length === 0) {
       alert('Please upload shipping labels first.');
       return;
@@ -913,6 +1241,33 @@ document.addEventListener('DOMContentLoaded', () => {
         hideProgress();
         if (window.confetti) window.confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
         showToast(`🎉 Successfully generated ${downloadCount} separate PDFs (Single & Combo)!`);
+
+        // Log Activity to Free EvoriaDB & Cloud Sync
+        if (window.EvoriaDB) {
+          window.EvoriaDB.logActivity({
+            type: 'Split PDF Generation',
+            platform: state.platform,
+            labelCount: state.orders.length,
+            skuCount: state.skuSummary.length,
+            cropLabels: state.cropLabels,
+            comboSetting: state.comboSetting
+          });
+          updateDatabaseBadge();
+        }
+
+        // Log Activity to Firestore Database
+        if (window.EvoriaAuth && state.currentUser) {
+          window.EvoriaAuth.logActivity(state.currentUser.uid, {
+            type: 'split_pdf_generated',
+            platform: state.platform,
+            totalLabels: state.orders.length,
+            singleCount: result.singleCount,
+            comboCount: result.comboCount,
+            skuCount: state.skuSummary.length,
+            cropLabels: state.cropLabels,
+            timestampStr: new Date().toLocaleString()
+          });
+        }
       } catch (err) {
         console.error('Error generating split PDFs:', err);
         hideProgress();
@@ -935,6 +1290,32 @@ document.addEventListener('DOMContentLoaded', () => {
         hideProgress();
         if (window.confetti) window.confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
         showToast('🎉 Print-ready sorted PDF downloaded successfully!');
+
+        // Log Activity to Free EvoriaDB & Cloud Sync
+        if (window.EvoriaDB) {
+          window.EvoriaDB.logActivity({
+            type: 'Sorted PDF Generation',
+            platform: state.platform,
+            labelCount: state.orders.length,
+            skuCount: state.skuSummary.length,
+            cropLabels: state.cropLabels,
+            comboSetting: state.comboSetting
+          });
+          updateDatabaseBadge();
+        }
+
+        // Log Activity to Firestore Database
+        if (window.EvoriaAuth && state.currentUser) {
+          window.EvoriaAuth.logActivity(state.currentUser.uid, {
+            type: 'sorted_pdf_generated',
+            platform: state.platform,
+            labelCount: state.orders.length,
+            skuCount: state.skuSummary.length,
+            cropLabels: state.cropLabels,
+            comboSetting: state.comboSetting,
+            timestampStr: new Date().toLocaleString()
+          });
+        }
       } catch (err) {
         console.error('Error generating PDF:', err);
         hideProgress();
@@ -948,6 +1329,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   if (downloadPicklistBtn) {
     downloadPicklistBtn.addEventListener('click', async () => {
+      if (!state.currentUser) {
+        alert('કૃપા કરીને પહેલાં Google Login કરો.');
+        triggerGoogleLogin();
+        return;
+      }
+
       if (state.orders.length === 0) {
         alert('Please upload shipping labels first.');
         return;
@@ -969,6 +1356,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         hideProgress();
         showToast('📋 Warehouse SKU Pick List downloaded!');
+
+        // Log Activity to Free EvoriaDB & Cloud Sync
+        if (window.EvoriaDB) {
+          window.EvoriaDB.logActivity({
+            type: 'SKU Picklist Download',
+            platform: state.platform,
+            labelCount: state.orders.length,
+            skuCount: state.skuSummary.length
+          });
+          updateDatabaseBadge();
+        }
+
+        // Log Activity to Firestore Database
+        if (window.EvoriaAuth && state.currentUser) {
+          window.EvoriaAuth.logActivity(state.currentUser.uid, {
+            type: 'picklist_downloaded',
+            platform: state.platform,
+            labelCount: state.orders.length,
+            skuCount: state.skuSummary.length,
+            timestampStr: new Date().toLocaleString()
+          });
+        }
       } catch (err) {
         console.error('Error generating picklist:', err);
         hideProgress();

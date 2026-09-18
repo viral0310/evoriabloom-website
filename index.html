@@ -56,6 +56,12 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 
+  <!-- Firebase App, Auth & Firestore SDKs (Compat v10 for clean browser usage) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+
   <!-- Custom CSS -->
   <link rel="stylesheet" href="style.css">
 </head>
@@ -101,17 +107,39 @@
         <a href="#faq" class="hover:text-blue-600 transition-colors">FAQ</a>
       </nav>
 
-      <!-- Right Action CTA -->
+      <!-- Right Action Auth CTA -->
       <div class="flex items-center gap-3">
-        <div class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+        <!-- Logged Out State: Google Sign-in Button -->
+        <button id="nav-google-login-btn" class="flex items-center gap-2 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl shadow-sm hover:shadow transition-all">
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
           </svg>
-          No Login Required
+          <span class="hidden sm:inline">Sign In with</span> Google
+        </button>
+
+        <!-- Logged In State: Database Button, User Avatar & Logout -->
+        <div id="nav-user-profile" class="hidden flex items-center gap-2">
+          <button id="nav-database-btn" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 rounded-xl transition-all shadow-xs" title="View Stored Database & Activity Logs">
+            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+            </svg>
+            <span class="hidden sm:inline">Database</span>
+            <span id="nav-db-count-badge" class="px-1.5 py-0.2 bg-indigo-200 text-indigo-800 rounded-full text-[10px] font-bold">0</span>
+          </button>
+
+          <div class="flex items-center gap-2 p-1 pl-2 bg-slate-100 rounded-full border border-slate-200">
+            <img id="nav-user-avatar" src="" class="w-6 h-6 rounded-full object-cover border border-white shadow-xs" alt="User">
+            <span id="nav-user-name" class="text-xs font-bold text-slate-800 pr-2 max-w-[120px] truncate">Seller</span>
+          </div>
+          <button id="nav-logout-btn" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Logout">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+          </button>
         </div>
-        <a href="#tools" class="px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-all shadow-sm">
-          Get Started &rarr;
-        </a>
       </div>
     </div>
   </header>
@@ -211,62 +239,170 @@
 
       </div>
 
-      <!-- Right Column: Upload Box Card -->
+      <!-- Right Column: Auth Gate Card & Upload Box Card -->
       <div class="lg:col-span-6">
-        <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xl shadow-slate-200/40">
-          
-          <div class="text-center mb-6">
-            <h3 class="text-xl font-bold text-slate-900 mb-1">Upload Shipping Labels</h3>
-            <p class="text-xs text-slate-500 max-w-sm mx-auto">
-              Upload your shipping label PDF for a quick label crop, sort by SKU, and prepare a cleaner print ready file.
-            </p>
-          </div>
 
-          <!-- Dropzone Container -->
-          <div id="dropzone" class="dropzone-border rounded-2xl p-8 sm:p-10 text-center cursor-pointer bg-slate-50/70 hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center">
-            
-            <input type="file" id="file-input" class="hidden" accept="application/pdf" multiple>
+        <!-- ==========================================
+             Auth Gate Card (Visible when Logged Out)
+             Tool cannot be used without Google Login
+             ========================================== -->
+        <div id="auth-gate-card" class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-indigo-100 shadow-xl shadow-indigo-100/40 relative overflow-hidden transition-all">
+          <div class="absolute -top-12 -right-12 w-40 h-40 bg-gradient-to-br from-blue-400/20 to-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
 
-            <!-- Upload Cloud Icon with Pulse -->
-            <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-4 shadow-sm">
-              <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-              </svg>
-            </div>
-
-            <div class="text-sm font-semibold text-slate-800 mb-1">
-              <span id="select-file-btn" class="text-blue-600 hover:text-blue-700 underline underline-offset-2">Click here to upload</span> or Drag &amp; Drop <span id="dropzone-platform-name">Meesho</span> Label PDFs Here
-            </div>
-            
-            <div class="text-[11px] text-slate-400 mt-1 font-medium">
-              Supported format: PDF · Up to 50MB
-            </div>
-
-          </div>
-
-          <!-- Selected Files List Container (Dynamically Populated) -->
-          <div id="selected-files-list" class="mt-4 hidden"></div>
-
-          <!-- Action Button: Upload & Prepare Labels -->
-          <button id="upload-prepare-btn" disabled class="mt-5 w-full py-3.5 px-6 rounded-xl font-semibold text-slate-400 bg-slate-200 transition-all cursor-not-allowed text-sm">
-            Upload &amp; Prepare Labels
-          </button>
-
-          <!-- Divider with Demo / Sample Label Generator -->
-          <div class="relative flex py-4 items-center">
-            <div class="flex-grow border-t border-slate-200"></div>
-            <span class="flex-shrink mx-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">or test without a file</span>
-            <div class="flex-grow border-t border-slate-200"></div>
-          </div>
-
-          <button id="try-sample-btn" class="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center justify-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+          <!-- Lock Badge -->
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 mb-4">
+            <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
             </svg>
-            Try with Sample Labels (Instant Demo)
-          </button>
+            Seller Login Required
+          </div>
+
+          <h3 class="text-2xl font-extrabold text-slate-900 tracking-tight mb-2">
+            Unlock EvoriaBloom Seller Suite
+          </h3>
+          <p class="text-xs sm:text-sm text-slate-600 mb-5 leading-relaxed">
+            Please sign in to crop labels, sort orders by SKU, and generate thermal print PDFs. All activity is automatically stored in your Database (<span class="font-mono text-indigo-600 font-bold">orealuxe.in</span>).
+          </p>
+
+          <!-- Action Buttons Stack -->
+          <div class="space-y-2.5">
+            <!-- 1. Instant 1-Click Store Owner Access -->
+            <button id="gate-instant-seller-btn" class="w-full py-3.5 px-5 rounded-2xl font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md hover:shadow-indigo-500/25 transition-all flex items-center justify-center gap-2.5 text-sm group">
+              <svg class="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path>
+              </svg>
+              <span>Instant Seller Login (Viral · orealuxe.in)</span>
+            </button>
+
+            <!-- 2. Google Sign-In Option -->
+            <button id="gate-google-login-btn" class="w-full py-2.5 px-4 rounded-xl font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 shadow-xs hover:shadow transition-all flex items-center justify-center gap-2 text-xs group">
+              <svg class="w-4 h-4 shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Sign in with Google Account</span>
+            </button>
+          </div>
+
+          <!-- Benefits List -->
+          <div class="mt-5 pt-4 border-t border-slate-100 space-y-2">
+            <div class="flex items-center gap-2.5 text-xs text-slate-700 font-medium">
+              <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <span>100% Free Database Storage connected for <strong class="text-slate-900">orealuxe.in</strong></span>
+            </div>
+            <div class="flex items-center gap-2.5 text-xs text-slate-700 font-medium">
+              <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <span>Instant client-side label crop &amp; SKU sorting</span>
+            </div>
+            <div class="flex items-center gap-2.5 text-xs text-slate-700 font-medium">
+              <div class="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <span>Export processing history anytime to Excel / CSV</span>
+            </div>
+          </div>
+
+          <!-- Bottom Links: Database & Cloud Config -->
+          <div class="mt-5 text-center flex items-center justify-center gap-4 text-[11px] text-slate-400 font-medium">
+            <button id="gate-firebase-config-btn" class="hover:text-indigo-600 inline-flex items-center gap-1 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <span>Custom Firebase Keys</span>
+            </button>
+          </div>
 
         </div>
+
+        <!-- ==========================================
+             Upload Card Wrapper (Visible when Logged In)
+             ========================================== -->
+        <div id="upload-card-wrapper" class="hidden">
+          <div class="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-xl shadow-slate-200/40">
+            
+            <!-- User Status Header inside Upload Card -->
+            <div class="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-xs font-semibold text-slate-700">Account Active</span>
+                <span id="user-badge-email" class="text-[11px] text-slate-400 font-mono truncate max-w-[140px] sm:max-w-[180px]"></span>
+              </div>
+              <button id="upload-firebase-config-btn" class="text-[11px] text-slate-400 hover:text-slate-600 font-medium inline-flex items-center gap-1" title="Firebase Settings">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span>Firebase DB</span>
+              </button>
+            </div>
+
+            <div class="text-center mb-6">
+              <h3 class="text-xl font-bold text-slate-900 mb-1">Upload Shipping Labels</h3>
+              <p class="text-xs text-slate-500 max-w-sm mx-auto">
+                Upload your shipping label PDF for a quick label crop, sort by SKU, and prepare a cleaner print ready file.
+              </p>
+            </div>
+
+            <!-- Dropzone Container -->
+            <div id="dropzone" class="dropzone-border rounded-2xl p-8 sm:p-10 text-center cursor-pointer bg-slate-50/70 hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center">
+              
+              <input type="file" id="file-input" class="hidden" accept="application/pdf" multiple>
+
+              <!-- Upload Cloud Icon with Pulse -->
+              <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-4 shadow-sm">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+              </div>
+
+              <div class="text-sm font-semibold text-slate-800 mb-1">
+                <span id="select-file-btn" class="text-blue-600 hover:text-blue-700 underline underline-offset-2">Click here to upload</span> or Drag &amp; Drop <span id="dropzone-platform-name">Meesho</span> Label PDFs Here
+              </div>
+              
+              <div class="text-[11px] text-slate-400 mt-1 font-medium">
+                Supported format: PDF · Up to 50MB
+              </div>
+
+            </div>
+
+            <!-- Selected Files List Container (Dynamically Populated) -->
+            <div id="selected-files-list" class="mt-4 hidden"></div>
+
+            <!-- Action Button: Upload & Prepare Labels -->
+            <button id="upload-prepare-btn" disabled class="mt-5 w-full py-3.5 px-6 rounded-xl font-semibold text-slate-400 bg-slate-200 transition-all cursor-not-allowed text-sm">
+              Upload &amp; Prepare Labels
+            </button>
+
+            <!-- Divider with Demo / Sample Label Generator -->
+            <div class="relative flex py-4 items-center">
+              <div class="flex-grow border-t border-slate-200"></div>
+              <span class="flex-shrink mx-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">or test without a file</span>
+              <div class="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            <button id="try-sample-btn" class="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path>
+              </svg>
+              Try with Sample Labels (Instant Demo)
+            </button>
+
+          </div>
+        </div>
+
       </div>
 
     </div>
@@ -737,7 +873,204 @@
     </div>
   </div>
 
+  <!-- =========================================================================
+       13. Firebase Configuration Modal (Custom Project Settings)
+       ========================================================================= -->
+  <div id="firebase-config-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl modal-enter border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center text-lg font-bold">
+            🔥
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Firebase Configuration</h3>
+            <p class="text-[11px] text-slate-400">Connect your Google Firebase Database &amp; Auth</p>
+          </div>
+        </div>
+        <button id="close-firebase-config-btn" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-600 leading-relaxed">
+        તમારા પોતાના Firebase પ્રોજેક્ટની વિગતો નીચે દાખલ કરો જેથી યુઝર પ્રોફાઇલ અને પ્રોસેસિંગ હિસ્ટ્રી તમારા <strong>Firestore Database</strong> માં સેવ થાય.
+      </p>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">API Key</label>
+          <input type="text" id="fb-cfg-apiKey" placeholder="AIzaSy..." class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Auth Domain</label>
+            <input type="text" id="fb-cfg-authDomain" placeholder="your-project.firebaseapp.com" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Project ID</label>
+            <input type="text" id="fb-cfg-projectId" placeholder="your-project-id" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Storage Bucket</label>
+            <input type="text" id="fb-cfg-storageBucket" placeholder="your-project.appspot.com" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Messaging Sender ID</label>
+            <input type="text" id="fb-cfg-messagingSenderId" placeholder="123456789012" class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">App ID</label>
+          <input type="text" id="fb-cfg-appId" placeholder="1:123456789012:web:abcdef..." class="w-full px-3 py-2 rounded-xl border border-slate-300 font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+        </div>
+      </div>
+
+      <!-- Instruction Box -->
+      <div class="p-3 bg-amber-50 rounded-xl border border-amber-200/80 text-[11px] text-amber-900 space-y-1">
+        <div class="font-bold flex items-center gap-1">
+          <span>💡</span> Firebase Console સેટિંગ માર્ગદર્શન:
+        </div>
+        <ol class="list-decimal list-inside space-y-0.5 text-amber-800">
+          <li><strong>Firebase Console</strong> &rarr; Authentication &rarr; <strong>Google Provider</strong> Enable કરો.</li>
+          <li>Authentication &rarr; Settings &rarr; <strong>Authorized Domains</strong> માં તમારું ડોમેન (<code>orealuxe.in</code> અને <code>localhost</code>) ઉમેરો.</li>
+          <li><strong>Firestore Database</strong> &rarr; Create Database પર ક્લિક કરો.</li>
+        </ol>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="pt-2 flex items-center justify-between gap-3">
+        <button id="reset-firebase-config-btn" class="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all">
+          Reset Default
+        </button>
+        <div class="flex items-center gap-2">
+          <button id="cancel-firebase-config-btn" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">
+            Cancel
+          </button>
+          <button id="save-firebase-config-btn" class="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-md shadow-blue-500/20">
+            Save &amp; Connect
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       14. Database & Activity History Modal (Connected to orealuxe.in)
+       ========================================================================= -->
+  <div id="database-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl p-6 sm:p-7 max-w-2xl w-full shadow-2xl modal-enter border border-slate-200 space-y-4 max-h-[90vh] flex flex-col">
+      
+      <!-- Modal Header -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center font-bold text-lg">
+            📊
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900">EvoriaBloom Database &amp; History</h3>
+            <p class="text-[11px] text-slate-400">Live order &amp; label processing records (<span class="font-mono text-indigo-600 font-bold">orealuxe.in</span>)</p>
+          </div>
+        </div>
+        <button id="close-database-modal-btn" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Quick Metrics Counters -->
+      <div class="grid grid-cols-3 gap-3">
+        <div class="p-3 bg-blue-50/70 border border-blue-100 rounded-2xl text-center">
+          <div class="text-[11px] font-semibold text-blue-600 uppercase tracking-wider">Total Labels</div>
+          <div id="db-stat-total-labels" class="text-xl font-black text-slate-900 mt-0.5">0</div>
+        </div>
+        <div class="p-3 bg-purple-50/70 border border-purple-100 rounded-2xl text-center">
+          <div class="text-[11px] font-semibold text-purple-600 uppercase tracking-wider">Total Batches</div>
+          <div id="db-stat-total-batches" class="text-xl font-black text-slate-900 mt-0.5">0</div>
+        </div>
+        <div class="p-3 bg-emerald-50/70 border border-emerald-100 rounded-2xl text-center">
+          <div class="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Database Status</div>
+          <div class="text-xs font-bold text-emerald-700 mt-1 flex items-center justify-center gap-1">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Free DB Ready
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Toolbar -->
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div class="text-xs font-bold text-slate-700">Stored Activity Logs</div>
+        <div class="flex items-center gap-2">
+          <button id="db-export-csv-btn" class="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm flex items-center gap-1.5 transition-all">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Export Excel / CSV
+          </button>
+          <button id="db-toggle-cloud-btn" class="px-3 py-1.5 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center gap-1">
+            <span>☁</span> Google Sheets Sync
+          </button>
+          <button id="db-clear-history-btn" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Clear History">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Cloud Sync Panel (Collapsible) -->
+      <div id="db-cloud-panel" class="hidden p-3.5 bg-indigo-50/60 rounded-2xl border border-indigo-100 space-y-2 text-xs">
+        <div class="font-bold text-indigo-950 flex items-center justify-between">
+          <span>Free Google Sheets Database Sync:</span>
+          <span class="text-[10px] text-indigo-600 font-normal">Optional</span>
+        </div>
+        <p class="text-slate-600 text-[11px] leading-relaxed">
+          Paste your Google Apps Script Web App URL below to automatically sync every processed label batch to your personal Google Sheet:
+        </p>
+        <div class="flex items-center gap-2">
+          <input type="text" id="db-cloud-webhook-input" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 px-3 py-1.5 rounded-xl border border-indigo-200 text-xs font-mono outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+          <button id="db-save-webhook-btn" class="px-4 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all">
+            Save Sync
+          </button>
+        </div>
+      </div>
+
+      <!-- Table Container -->
+      <div class="flex-1 overflow-y-auto border border-slate-200 rounded-2xl min-h-[160px] max-h-[280px]">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[10px]">
+            <tr>
+              <th class="p-2.5">Date &amp; Time</th>
+              <th class="p-2.5">Platform</th>
+              <th class="p-2.5 text-center">Labels</th>
+              <th class="p-2.5 text-center">SKUs</th>
+              <th class="p-2.5">Action</th>
+              <th class="p-2.5">User</th>
+            </tr>
+          </thead>
+          <tbody id="db-activity-table-body" class="divide-y divide-slate-100 text-slate-700">
+            <!-- Dynamically injected -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="pt-2 flex items-center justify-between text-xs text-slate-400 border-t border-slate-100">
+        <div>100% Free · Stored locally &amp; permanently on your browser/domain</div>
+        <button id="close-database-modal-bottom-btn" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+
   <!-- Scripts -->
+  <script src="database.js"></script>
   <script src="pdf-processor.js"></script>
   <script src="app.js"></script>
 
