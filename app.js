@@ -152,53 +152,66 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeInfoModalBtn = document.getElementById('close-info-modal');
 
   // ==========================================
-  // 0. Firebase Authentication & Protection (Strict Admin viraltada2001@gmail.com)
+  // 0. Firebase Authentication & Role-Based Access
   // ==========================================
   const ADMIN_EMAIL = 'viraltada2001@gmail.com';
 
-  function updateAuthUI(user) {
-    // Strict Admin check: Only viraltada2001@gmail.com is authorized!
-    if (user) {
-      const email = (user.email || '').toLowerCase().trim();
-      if (email !== ADMIN_EMAIL.toLowerCase()) {
-        alert(
-          `❌ ઍક્સેસ નકારાયો (Access Denied):\n\n` +
-          `તમારું એકાઉન્ટ (${user.email || 'અજાણ્યું'}) એડમિન તરીકે માન્ય નથી.\n` +
-          `ફક્ત Admin (${ADMIN_EMAIL}) જ EvoriaBloom ટૂલનો ઉપયોગ કરી શકે છે.`
-        );
-        if (window.EvoriaAuth) {
-          window.EvoriaAuth.logout();
-        }
-        if (window.EvoriaDB) {
-          window.EvoriaDB.setActiveUser(null);
-        }
-        user = null;
-      } else {
-        // Authenticated Admin
-        if (window.EvoriaDB) {
-          window.EvoriaDB.saveUser(user);
-          window.EvoriaDB.setActiveUser(user);
-        }
-      }
-    }
+  function isAdmin(user) {
+    if (!user || !user.email) return false;
+    return user.email.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase();
+  }
 
+  function updateAuthUI(user) {
     state.currentUser = user;
 
     if (user) {
+      if (window.EvoriaDB) {
+        window.EvoriaDB.saveUser(user);
+        window.EvoriaDB.setActiveUser(user);
+      }
+
+      const userIsAdmin = isAdmin(user);
+
       if (authGateCard) authGateCard.classList.add('hidden');
       if (uploadCardWrapper) uploadCardWrapper.classList.remove('hidden');
       if (navGoogleLoginBtn) navGoogleLoginBtn.classList.add('hidden');
       if (navUserProfile) navUserProfile.classList.remove('hidden');
       if (navUserAvatar) {
-        navUserAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.displayName || 'Viral')}`;
+        navUserAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.displayName || user.email || 'Seller')}`;
       }
-      if (navUserName) navUserName.textContent = '👑 Admin (Viral Tada)';
-      if (userBadgeEmail) userBadgeEmail.textContent = `👑 Admin Verified: ${user.email}`;
+
+      if (userIsAdmin) {
+        // ADMIN SPECIFIC ACCESS (viraltada2001@gmail.com)
+        if (navUserName) navUserName.textContent = '👑 Admin (Viral Tada)';
+        if (userBadgeEmail) userBadgeEmail.textContent = `👑 Admin: ${user.email}`;
+        // Show Database Button for Admin ONLY
+        if (navDatabaseBtn) {
+          navDatabaseBtn.classList.remove('hidden');
+          navDatabaseBtn.classList.add('flex');
+        }
+        if (uploadFirebaseConfigBtn) uploadFirebaseConfigBtn.classList.remove('hidden');
+        updateDatabaseBadge();
+      } else {
+        // REGULAR SELLER ACCESS (Any Google user)
+        if (navUserName) navUserName.textContent = user.displayName || user.email.split('@')[0];
+        if (userBadgeEmail) userBadgeEmail.textContent = user.email;
+        // HIDE Database Button completely from regular users
+        if (navDatabaseBtn) {
+          navDatabaseBtn.classList.add('hidden');
+          navDatabaseBtn.classList.remove('flex');
+        }
+        if (uploadFirebaseConfigBtn) uploadFirebaseConfigBtn.classList.add('hidden');
+      }
     } else {
+      // LOGGED OUT STATE
       if (authGateCard) authGateCard.classList.remove('hidden');
       if (uploadCardWrapper) uploadCardWrapper.classList.add('hidden');
       if (navGoogleLoginBtn) navGoogleLoginBtn.classList.remove('hidden');
       if (navUserProfile) navUserProfile.classList.add('hidden');
+      if (navDatabaseBtn) {
+        navDatabaseBtn.classList.add('hidden');
+        navDatabaseBtn.classList.remove('flex');
+      }
       if (userBadgeEmail) userBadgeEmail.textContent = '';
 
       // If user was inside workspace, kick back to upload section to enforce login gate
@@ -228,19 +241,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Login Handlers (Only Google Login Allowed)
+  // Login Handlers (All Google users welcome)
   async function triggerGoogleLogin() {
     if (!window.EvoriaAuth) return;
     try {
       showToast('Google Sign-In કનેક્ટ થઈ રહ્યું છે...');
       const user = await window.EvoriaAuth.loginWithGoogle();
       if (user) {
-        const email = (user.email || '').toLowerCase().trim();
-        if (email === ADMIN_EMAIL.toLowerCase()) {
-          updateAuthUI(user);
+        updateAuthUI(user);
+        if (isAdmin(user)) {
           showToast(`👑 સ્વાગત છે, Viral Tada! Admin Access Unlocked.`);
         } else {
-          updateAuthUI(user);
+          showToast(`👋 Welcome, ${user.displayName || 'Seller'}! Tool unlocked.`);
         }
       }
     } catch (err) {
@@ -274,6 +286,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function openDatabaseModal() {
+    if (!isAdmin(state.currentUser)) {
+      alert(`⚠️ આ ડેટાબેઝ ફક્ત Admin (${ADMIN_EMAIL}) માટે જ ઉપલબ્ધ છે.`);
+      return;
+    }
     if (!window.EvoriaDB || !databaseModal) return;
     const stats = window.EvoriaDB.getStats();
     const activities = window.EvoriaDB.getActivities();
@@ -370,6 +386,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Firebase Config Modal Handlers
   function openFirebaseConfigModal() {
+    if (!isAdmin(state.currentUser)) {
+      alert(`⚠️ Firebase Settings ફક્ત Admin (${ADMIN_EMAIL}) જ બદલી શકે છે.`);
+      return;
+    }
     if (!window.EvoriaFirebaseConfig || !firebaseConfigModal) return;
     const cfg = window.EvoriaFirebaseConfig.getConfig();
     if (fbCfgApiKey) fbCfgApiKey.value = cfg.apiKey || '';

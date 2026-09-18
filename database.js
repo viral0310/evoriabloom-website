@@ -83,22 +83,25 @@ window.EvoriaDB = (function () {
   }
 
   /**
-   * Get currently authenticated user session (Strict Admin Only)
+   * Check if a user has admin privileges (viraltada2001@gmail.com)
+   */
+  function isAdmin(user) {
+    const u = user || getActiveUser();
+    return !!(u && u.email && u.email.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase());
+  }
+
+  /**
+   * Get currently authenticated user session
    */
   function getActiveUser() {
-    const user = _loadJSON(STORAGE_KEY_SESSION, null);
-    if (user && user.email && user.email.toLowerCase().trim() !== ADMIN_EMAIL.toLowerCase()) {
-      localStorage.removeItem(STORAGE_KEY_SESSION);
-      return null;
-    }
-    return user;
+    return _loadJSON(STORAGE_KEY_SESSION, null);
   }
 
   /**
    * Set or clear active session
    */
   function setActiveUser(user) {
-    if (user && user.email && user.email.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase()) {
+    if (user) {
       _saveJSON(STORAGE_KEY_SESSION, user);
     } else {
       localStorage.removeItem(STORAGE_KEY_SESSION);
@@ -163,24 +166,36 @@ window.EvoriaDB = (function () {
   }
 
   /**
-   * Get all stored activities
+   * Get stored activities (Admin sees all, sellers see only their own)
    */
   function getActivities() {
     init();
-    return activitiesCache;
+    const active = getActiveUser();
+    if (isAdmin(active)) {
+      return activitiesCache;
+    }
+    if (active && active.email) {
+      return activitiesCache.filter(a => (a.userEmail || '').toLowerCase() === active.email.toLowerCase());
+    }
+    return [];
   }
 
   /**
-   * Get database statistics
+   * Get database statistics (Admin sees total across all sellers)
    */
   function getStats() {
     init();
-    const totalBatches = activitiesCache.length;
+    const active = getActiveUser();
+    const list = isAdmin(active)
+      ? activitiesCache
+      : (active && active.email ? activitiesCache.filter(a => (a.userEmail || '').toLowerCase() === active.email.toLowerCase()) : []);
+
+    const totalBatches = list.length;
     let totalLabels = 0;
     let totalSkus = 0;
     const platformBreakdown = { MEESHO: 0, AMAZON: 0, FLIPKART: 0 };
 
-    activitiesCache.forEach(a => {
+    list.forEach(a => {
       totalLabels += a.labelCount || 0;
       totalSkus += a.skuCount || 0;
       const p = a.platform ? a.platform.toUpperCase() : 'MEESHO';
@@ -198,10 +213,16 @@ window.EvoriaDB = (function () {
   }
 
   /**
-   * Export all database records to CSV
+   * Export all database records to CSV (Admin Only)
    */
   function exportToCSV() {
     init();
+    const active = getActiveUser();
+    if (!isAdmin(active)) {
+      alert('⚠️ ડેટાબેઝ એક્સપોર્ટ ફક્ત Admin (viraltada2001@gmail.com) માટે જ ઉપલબ્ધ છે.');
+      return;
+    }
+
     if (activitiesCache.length === 0) {
       alert('No database records to export yet.');
       return;
@@ -235,9 +256,13 @@ window.EvoriaDB = (function () {
   }
 
   /**
-   * Clear all activities
+   * Clear all activities (Admin Only)
    */
   function clearActivities() {
+    if (!isAdmin(getActiveUser())) {
+      alert('⚠️ Clear History ફક્ત Admin માટે જ ઉપલબ્ધ છે.');
+      return;
+    }
     activitiesCache = [];
     _saveJSON(STORAGE_KEY_ACTIVITIES, []);
   }
@@ -250,6 +275,7 @@ window.EvoriaDB = (function () {
   }
 
   function setCloudWebhookUrl(url) {
+    if (!isAdmin(getActiveUser())) return;
     localStorage.setItem(STORAGE_KEY_CLOUD_WEBHOOK, (url || '').trim());
   }
 
@@ -258,6 +284,7 @@ window.EvoriaDB = (function () {
 
   return {
     init,
+    isAdmin,
     saveUser,
     getActiveUser,
     setActiveUser,
