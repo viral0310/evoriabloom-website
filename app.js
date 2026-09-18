@@ -15,13 +15,22 @@ document.addEventListener('DOMContentLoaded', () => {
     sortType: 'sku', // 'sku' | 'courier'
     sortBy: 'name', // 'name' | 'count'
     sortDirection: 'asc', // 'asc' | 'desc'
-    cropLabels: false,
+    printLayout: 'thermal_4x6', // 'thermal_4x6' | 'thermal_4x4' | 'a4_grid' | 'full_page'
+    printA4Grid: false,
+    cropLabels: true,
     trimWhitespace: false,
     dropInvoicePages: true,
     stampSku: false,
+    stampDateTime: false,
+    storeQrEnabled: false,
+    storeQrUrl: '',
+    separateOrdersEnabled: false,
+    separateOrdersText: '',
+    filterOrderIds: [],
     comboSetting: 'no_preference', // 'no_preference' | 'keep_on_top' | 'separate_pdf'
     customMessageEnabled: false,
-    customMessageText: 'Thank you for your order! - EvoriaBloom',
+    customMessageText: '★ Please make a 360° unboxing video for return claims ★',
+    livePreviewIndex: 0,
     isProcessing: false,
     sortableInstance: null,
     currentUser: null
@@ -95,34 +104,41 @@ document.addEventListener('DOMContentLoaded', () => {
   const fbCfgMessagingSenderId = document.getElementById('fb-cfg-messagingSenderId');
   const fbCfgAppId = document.getElementById('fb-cfg-appId');
 
-  // Workspace Stats
+  // Workspace Stats & Quick Actions
   const statLabelsCount = document.getElementById('stat-labels-count');
+  const statLabelsVal = document.getElementById('stat-labels-val');
   const statSkusCount = document.getElementById('stat-skus-count');
+  const statSingleCount = document.getElementById('stat-single-count');
+  const statComboCount = document.getElementById('stat-combo-count');
   const statCourierBadge = document.getElementById('stat-courier-badge');
   const statCourierCount = document.getElementById('stat-courier-count');
+  const copySkusBtn = document.getElementById('copy-skus-btn');
 
   // Action Buttons
   const startOverBtn = document.getElementById('start-over-btn');
   const generatePdfBtn = document.getElementById('generate-pdf-btn');
   const previewMapBtn = document.getElementById('preview-map-btn');
 
-  // Left Controls
+  // Print & Paper Layout Selector
+  const layoutActiveBadge = document.getElementById('layout-active-badge');
+  const layoutBtnThermal4x6 = document.getElementById('layout-btn-thermal-4x6');
+  const layoutBtnThermal4x4 = document.getElementById('layout-btn-thermal-4x4');
+  const layoutBtnA4Grid = document.getElementById('layout-btn-a4-grid');
+  const layoutBtnFullPage = document.getElementById('layout-btn-full-page');
+  const amazonCropOptions = document.getElementById('amazon-crop-options');
+  const chkDropInvoiceStampSku = document.getElementById('chk-drop-invoice-stamp');
+  const chkCropLabels = document.getElementById('chk-crop-labels');
+  const chkTrimWhitespace = document.getElementById('chk-trim-whitespace');
+
+  // Sorting Controls
   const sortTypeContainer = document.getElementById('sort-type-container');
   const sortTypeSkuBtn = document.getElementById('sort-type-sku');
   const sortTypeCourierBtn = document.getElementById('sort-type-courier');
   const howSortingWorksBtn = document.getElementById('how-sorting-works-btn');
-
   const sortByNameBtn = document.getElementById('sort-by-name');
   const sortByCountBtn = document.getElementById('sort-by-count');
   const sortDirAscBtn = document.getElementById('sort-dir-asc');
   const sortDirDescBtn = document.getElementById('sort-dir-desc');
-
-  // Checkboxes
-  const meeshoFlipkartCropOptions = document.getElementById('meesho-flipkart-crop-options');
-  const amazonCropOptions = document.getElementById('amazon-crop-options');
-  const chkCropLabels = document.getElementById('chk-crop-labels');
-  const chkTrimWhitespace = document.getElementById('chk-trim-whitespace');
-  const chkDropInvoiceStampSku = document.getElementById('chk-drop-invoice-stamp');
 
   // Combo
   const comboNoPrefBtn = document.getElementById('combo-no-pref');
@@ -130,11 +146,30 @@ document.addEventListener('DOMContentLoaded', () => {
   const comboSeparateBtn = document.getElementById('combo-separate');
   const comboHelperText = document.getElementById('combo-helper-text');
 
-  // Custom Message
+  // Label Stamps & Branding
+  const chkStampDateTime = document.getElementById('chk-stamp-datetime');
+  const chkStoreQr = document.getElementById('chk-store-qr');
+  const storeQrInputWrapper = document.getElementById('store-qr-input-wrapper');
+  const txtStoreQr = document.getElementById('txt-store-qr');
   const chkCustomMessage = document.getElementById('chk-custom-message');
   const customMessageInputWrapper = document.getElementById('custom-message-input-wrapper');
   const txtCustomMessage = document.getElementById('txt-custom-message');
   const viewSampleMessageBtn = document.getElementById('view-sample-message-btn');
+
+  // Separate Review Orders
+  const chkSeparateOrders = document.getElementById('chk-separate-orders');
+  const separateOrdersWrapper = document.getElementById('separate-orders-wrapper');
+  const txtSeparateOrders = document.getElementById('txt-separate-orders');
+
+  // Live Interactive Label Preview
+  const livePreviewBadge = document.getElementById('live-preview-badge');
+  const livePrevBtn = document.getElementById('live-prev-btn');
+  const livePageIndicator = document.getElementById('live-page-indicator');
+  const liveNextBtn = document.getElementById('live-next-btn');
+  const livePreviewCanvas = document.getElementById('live-preview-canvas');
+  const liveSkuVal = document.getElementById('live-sku-val');
+  const liveCourierVal = document.getElementById('live-courier-val');
+  const liveQtyVal = document.getElementById('live-qty-val');
 
   // Right Panel
   const skuListContainer = document.getElementById('sku-list-container');
@@ -633,19 +668,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Platform-specific options toggling
     if (newPlatform === 'amazon') {
-      sortTypeContainer.classList.add('hidden');
-      meeshoFlipkartCropOptions.classList.add('hidden');
-      amazonCropOptions.classList.remove('hidden');
-      state.stampSku = chkDropInvoiceStampSku.checked;
-      state.dropInvoicePages = chkDropInvoiceStampSku.checked;
-      state.cropLabels = false;
+      if (sortTypeContainer) sortTypeContainer.classList.add('hidden');
+      if (amazonCropOptions) amazonCropOptions.classList.remove('hidden');
+      state.stampSku = chkDropInvoiceStampSku ? chkDropInvoiceStampSku.checked : true;
+      state.dropInvoicePages = chkDropInvoiceStampSku ? chkDropInvoiceStampSku.checked : true;
     } else {
-      sortTypeContainer.classList.remove('hidden');
-      meeshoFlipkartCropOptions.classList.remove('hidden');
-      amazonCropOptions.classList.add('hidden');
-      state.cropLabels = chkCropLabels.checked;
-      state.trimWhitespace = chkTrimWhitespace.checked;
+      if (sortTypeContainer) sortTypeContainer.classList.remove('hidden');
+      if (amazonCropOptions) amazonCropOptions.classList.add('hidden');
       state.stampSku = false;
+    }
+
+    if (state.orders.length > 0) {
+      queueLivePreviewUpdate();
     }
   }
 
@@ -992,21 +1026,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Update Stats
     const validOrders = state.orders.filter(o => !(state.platform === 'amazon' && state.dropInvoicePages && o.isInvoice));
-    statLabelsCount.textContent = `${validOrders.length} labels`;
-    statSkusCount.textContent = `${state.skuSummary.length} unique SKUs`;
+    
+    if (statLabelsVal) {
+      statLabelsVal.textContent = validOrders.length;
+    } else if (statLabelsCount) {
+      statLabelsCount.textContent = `${validOrders.length} labels`;
+    }
+
+    if (statSkusCount) {
+      statSkusCount.textContent = `${state.skuSummary.length} SKUs`;
+    }
+
+    // Compute Single vs Multi-qty Combo orders
+    let singleCount = 0;
+    let comboCount = 0;
+    validOrders.forEach(o => {
+      if ((o.qty || 1) > 1) comboCount++;
+      else singleCount++;
+    });
+
+    if (statSingleCount) statSingleCount.textContent = `${singleCount} Single`;
+    if (statComboCount) statComboCount.textContent = `${comboCount} Combo`;
 
     // Courier count (Meesho)
-    const couriers = new Set(validOrders.map(o => o.courier));
-    statCourierCount.textContent = `${couriers.size} courier partners`;
+    const couriers = new Set(validOrders.map(o => o.courier).filter(Boolean));
+    if (statCourierCount) {
+      statCourierCount.textContent = `${couriers.size} couriers`;
+    }
 
     if (state.platform === 'meesho') {
-      statCourierBadge.classList.remove('hidden');
+      if (statCourierBadge) statCourierBadge.classList.remove('hidden');
     } else {
-      statCourierBadge.classList.add('hidden');
+      if (statCourierBadge) statCourierBadge.classList.add('hidden');
     }
 
     renderSkuList();
     initSortable();
+
+    // Trigger initial live label preview
+    state.livePreviewIndex = 0;
+    queueLivePreviewUpdate();
   }
 
   function renderSkuList(filterText = '') {
@@ -1161,56 +1220,311 @@ document.addEventListener('DOMContentLoaded', () => {
     applySorting();
   });
 
-  // Checkboxes
-  chkCropLabels.addEventListener('change', e => {
-    state.cropLabels = e.target.checked;
-  });
+  // ==========================================
+  // Print & Paper Layout Management
+  // ==========================================
+  function updatePrintLayout(layout) {
+    state.printLayout = layout;
 
-  chkTrimWhitespace.addEventListener('change', e => {
-    state.trimWhitespace = e.target.checked;
-  });
+    const allButtons = [layoutBtnThermal4x6, layoutBtnThermal4x4, layoutBtnA4Grid, layoutBtnFullPage];
+    allButtons.forEach(btn => {
+      if (btn) {
+        btn.className = 'p-2.5 rounded-xl border text-center transition-all bg-white border-slate-200 hover:border-slate-300 text-slate-700 font-medium';
+      }
+    });
 
-  chkDropInvoiceStampSku.addEventListener('change', e => {
-    state.dropInvoicePages = e.target.checked;
-    state.stampSku = e.target.checked;
-  });
+    if (layout === 'thermal_4x6') {
+      state.cropLabels = true;
+      state.trimWhitespace = false;
+      state.printA4Grid = false;
+      if (layoutBtnThermal4x6) {
+        layoutBtnThermal4x6.className = 'p-2.5 rounded-xl border text-center transition-all bg-blue-50/80 border-blue-500 text-blue-700 shadow-xs font-semibold';
+      }
+      if (layoutActiveBadge) layoutActiveBadge.textContent = 'Thermal 4x6 Roll';
+      if (livePreviewBadge) livePreviewBadge.textContent = 'Thermal 4x6';
+    } else if (layout === 'thermal_4x4') {
+      state.cropLabels = true;
+      state.trimWhitespace = true;
+      state.printA4Grid = false;
+      if (layoutBtnThermal4x4) {
+        layoutBtnThermal4x4.className = 'p-2.5 rounded-xl border text-center transition-all bg-blue-50/80 border-blue-500 text-blue-700 shadow-xs font-semibold';
+      }
+      if (layoutActiveBadge) layoutActiveBadge.textContent = 'Thermal 4x4 Square';
+      if (livePreviewBadge) livePreviewBadge.textContent = 'Thermal 4x4';
+    } else if (layout === 'a4_grid') {
+      state.cropLabels = true;
+      state.trimWhitespace = true;
+      state.printA4Grid = true;
+      if (layoutBtnA4Grid) {
+        layoutBtnA4Grid.className = 'p-2.5 rounded-xl border text-center transition-all bg-blue-50/80 border-blue-500 text-blue-700 shadow-xs font-semibold';
+      }
+      if (layoutActiveBadge) layoutActiveBadge.textContent = 'A4 4-in-1 Sheet';
+      if (livePreviewBadge) livePreviewBadge.textContent = 'A4 4-in-1';
+    } else if (layout === 'full_page') {
+      state.cropLabels = false;
+      state.trimWhitespace = false;
+      state.printA4Grid = false;
+      if (layoutBtnFullPage) {
+        layoutBtnFullPage.className = 'p-2.5 rounded-xl border text-center transition-all bg-blue-50/80 border-blue-500 text-blue-700 shadow-xs font-semibold';
+      }
+      if (layoutActiveBadge) layoutActiveBadge.textContent = 'Full Sheet (Keep Invoice)';
+      if (livePreviewBadge) livePreviewBadge.textContent = 'Full Sheet';
+    }
 
+    if (chkCropLabels) chkCropLabels.checked = state.cropLabels;
+    if (chkTrimWhitespace) chkTrimWhitespace.checked = state.trimWhitespace;
+
+    queueLivePreviewUpdate();
+  }
+
+  if (layoutBtnThermal4x6) layoutBtnThermal4x6.addEventListener('click', () => updatePrintLayout('thermal_4x6'));
+  if (layoutBtnThermal4x4) layoutBtnThermal4x4.addEventListener('click', () => updatePrintLayout('thermal_4x4'));
+  if (layoutBtnA4Grid) layoutBtnA4Grid.addEventListener('click', () => updatePrintLayout('a4_grid'));
+  if (layoutBtnFullPage) layoutBtnFullPage.addEventListener('click', () => updatePrintLayout('full_page'));
+
+  if (chkDropInvoiceStampSku) {
+    chkDropInvoiceStampSku.addEventListener('change', e => {
+      state.dropInvoicePages = e.target.checked;
+      state.stampSku = e.target.checked;
+      queueLivePreviewUpdate();
+    });
+  }
+
+  // ==========================================
   // Combo Orders Segmented Buttons
+  // ==========================================
   function updateComboButtons(active) {
     state.comboSetting = active;
     [comboNoPrefBtn, comboKeepTopBtn, comboSeparateBtn].forEach(btn => {
-      btn.className = 'flex-1 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-all';
+      if (btn) btn.className = 'flex-1 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 rounded-lg transition-all';
     });
 
     if (active === 'no_preference') {
-      comboNoPrefBtn.className = 'flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm';
-      comboHelperText.textContent = 'Combos mixed in normally with single-qty orders.';
+      if (comboNoPrefBtn) comboNoPrefBtn.className = 'flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm';
+      if (comboHelperText) comboHelperText.textContent = 'Combos mixed in normally with single-qty orders.';
     } else if (active === 'keep_on_top') {
-      comboKeepTopBtn.className = 'flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm';
-      comboHelperText.textContent = 'Multi-quantity & combo orders will be placed at the very top of your print file.';
+      if (comboKeepTopBtn) comboKeepTopBtn.className = 'flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm';
+      if (comboHelperText) comboHelperText.textContent = 'Multi-quantity & combo orders will be placed at the very top of your print file.';
     } else if (active === 'separate_pdf') {
-      comboSeparateBtn.className = 'flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm';
-      comboHelperText.textContent = 'Combos will be separated into a distinct section for easy batching.';
+      if (comboSeparateBtn) comboSeparateBtn.className = 'flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm';
+      if (comboHelperText) comboHelperText.textContent = 'Combos will be separated into a distinct section for easy batching.';
     }
   }
 
-  comboNoPrefBtn.addEventListener('click', () => updateComboButtons('no_preference'));
-  comboKeepTopBtn.addEventListener('click', () => updateComboButtons('keep_on_top'));
-  comboSeparateBtn.addEventListener('click', () => updateComboButtons('separate_pdf'));
+  if (comboNoPrefBtn) comboNoPrefBtn.addEventListener('click', () => updateComboButtons('no_preference'));
+  if (comboKeepTopBtn) comboKeepTopBtn.addEventListener('click', () => updateComboButtons('keep_on_top'));
+  if (comboSeparateBtn) comboSeparateBtn.addEventListener('click', () => updateComboButtons('separate_pdf'));
 
-  // Custom Message
-  chkCustomMessage.addEventListener('change', e => {
-    state.customMessageEnabled = e.target.checked;
-    if (e.target.checked) {
-      customMessageInputWrapper.classList.remove('hidden');
-    } else {
-      customMessageInputWrapper.classList.add('hidden');
+  // ==========================================
+  // Date & Time, QR, Custom Message & Order Filter
+  // ==========================================
+  if (chkStampDateTime) {
+    chkStampDateTime.addEventListener('change', e => {
+      state.stampDateTime = e.target.checked;
+      queueLivePreviewUpdate();
+    });
+  }
+
+  if (chkStoreQr) {
+    chkStoreQr.addEventListener('change', e => {
+      state.storeQrEnabled = e.target.checked;
+      if (e.target.checked) {
+        if (storeQrInputWrapper) storeQrInputWrapper.classList.remove('hidden');
+      } else {
+        if (storeQrInputWrapper) storeQrInputWrapper.classList.add('hidden');
+      }
+      queueLivePreviewUpdate();
+    });
+  }
+
+  if (txtStoreQr) {
+    txtStoreQr.addEventListener('input', e => {
+      state.storeQrUrl = e.target.value.trim();
+      queueLivePreviewUpdate();
+    });
+  }
+
+  if (chkCustomMessage) {
+    chkCustomMessage.addEventListener('change', e => {
+      state.customMessageEnabled = e.target.checked;
+      if (e.target.checked) {
+        if (customMessageInputWrapper) customMessageInputWrapper.classList.remove('hidden');
+      } else {
+        if (customMessageInputWrapper) customMessageInputWrapper.classList.add('hidden');
+      }
+      queueLivePreviewUpdate();
+    });
+  }
+
+  if (txtCustomMessage) {
+    txtCustomMessage.addEventListener('input', e => {
+      state.customMessageText = e.target.value;
+      queueLivePreviewUpdate();
+    });
+  }
+
+  if (chkSeparateOrders) {
+    chkSeparateOrders.addEventListener('change', e => {
+      state.separateOrdersEnabled = e.target.checked;
+      if (e.target.checked) {
+        if (separateOrdersWrapper) separateOrdersWrapper.classList.remove('hidden');
+      } else {
+        if (separateOrdersWrapper) separateOrdersWrapper.classList.add('hidden');
+      }
+    });
+  }
+
+  if (txtSeparateOrders) {
+    txtSeparateOrders.addEventListener('input', e => {
+      state.separateOrdersText = e.target.value;
+      state.filterOrderIds = e.target.value
+        .split(/[\r\n,]+/)
+        .map(id => id.trim())
+        .filter(Boolean);
+    });
+  }
+
+  // ==========================================
+  // Copy All SKUs Action
+  // ==========================================
+  if (copySkusBtn) {
+    copySkusBtn.addEventListener('click', () => {
+      if (!state.skuOrder || state.skuOrder.length === 0) {
+        showToast('⚠️ No SKUs available to copy.');
+        return;
+      }
+      const textToCopy = state.skuOrder.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          showToast(`📋 Copied ${state.skuOrder.length} unique SKUs to clipboard!`);
+        }).catch(() => {
+          fallbackCopyText(textToCopy);
+        });
+      } else {
+        fallbackCopyText(textToCopy);
+      }
+    });
+  }
+
+  function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast(`📋 Copied ${state.skuOrder.length} unique SKUs to clipboard!`);
+  }
+
+  // ==========================================
+  // Interactive Live Label Preview Engine
+  // ==========================================
+  let previewDebounceTimer = null;
+
+  async function updateLiveLabelPreview() {
+    if (!livePreviewCanvas || state.orders.length === 0) return;
+
+    const validOrders = state.orders.filter(o => !(state.platform === 'amazon' && state.dropInvoicePages && o.isInvoice));
+    if (validOrders.length === 0) return;
+
+    if (state.livePreviewIndex >= validOrders.length) {
+      state.livePreviewIndex = 0;
+    } else if (state.livePreviewIndex < 0) {
+      state.livePreviewIndex = validOrders.length - 1;
     }
-  });
 
-  txtCustomMessage.addEventListener('input', e => {
-    state.customMessageText = e.target.value;
-  });
+    const ord = validOrders[state.livePreviewIndex];
+    if (!ord) return;
+
+    // Update info strip
+    if (livePageIndicator) {
+      livePageIndicator.textContent = `${state.livePreviewIndex + 1} / ${validOrders.length}`;
+    }
+    if (liveSkuVal) {
+      liveSkuVal.textContent = ord.sku || 'Unknown SKU';
+    }
+    if (liveCourierVal) {
+      liveCourierVal.textContent = ord.courier || 'Standard Courier';
+    }
+    if (liveQtyVal) {
+      liveQtyVal.textContent = `Qty: ${ord.qty || 1}`;
+    }
+
+    try {
+      await window.EvoriaPDF.renderPageThumbnail(ord, state.sourceFiles, livePreviewCanvas, {
+        scale: 0.85,
+        cropHalf: state.cropLabels || state.trimWhitespace
+      });
+
+      const ctx = livePreviewCanvas.getContext('2d');
+      if (!ctx) return;
+
+      const cW = livePreviewCanvas.width;
+      const cH = livePreviewCanvas.height;
+
+      // Draw date stamp preview
+      if (state.stampDateTime) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(71, 85, 105, 0.9)';
+        ctx.font = '600 10px "Plus Jakarta Sans", sans-serif';
+        const now = new Date();
+        const day = String(now.getDate()).padStart(2, '0');
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const mon = months[now.getMonth()];
+        const dateStr = `Packed: ${day}-${mon}`;
+        const tw = ctx.measureText(dateStr).width;
+        ctx.fillText(dateStr, cW - tw - 10, 16);
+        ctx.restore();
+      }
+
+      // Draw custom message preview
+      if (state.customMessageEnabled && state.customMessageText) {
+        ctx.save();
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 9px "Plus Jakarta Sans", sans-serif';
+        ctx.textAlign = 'center';
+        const snippet = state.customMessageText.length > 40 ? state.customMessageText.substring(0, 38) + '...' : state.customMessageText;
+        ctx.fillText(snippet, cW / 2, 16);
+        ctx.restore();
+      }
+
+      // Draw Store QR overlay preview
+      if (state.storeQrEnabled && state.storeQrUrl) {
+        ctx.save();
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cW - 40, 20, 30, 30);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cW - 40, 20, 30, 30);
+        ctx.fillStyle = '#2563eb';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('STORE QR', cW - 25, 38);
+        ctx.restore();
+      }
+    } catch (e) {
+      console.warn('Live preview render error:', e);
+    }
+  }
+
+  function queueLivePreviewUpdate() {
+    clearTimeout(previewDebounceTimer);
+    previewDebounceTimer = setTimeout(updateLiveLabelPreview, 100);
+  }
+
+  if (livePrevBtn) {
+    livePrevBtn.addEventListener('click', () => {
+      state.livePreviewIndex--;
+      updateLiveLabelPreview();
+    });
+  }
+
+  if (liveNextBtn) {
+    liveNextBtn.addEventListener('click', () => {
+      state.livePreviewIndex++;
+      updateLiveLabelPreview();
+    });
+  }
 
   // Start Over Button
   startOverBtn.addEventListener('click', () => {
@@ -1374,10 +1688,14 @@ document.addEventListener('DOMContentLoaded', () => {
       sortType: state.sortType,
       cropLabels: state.cropLabels,
       trimWhitespace: state.trimWhitespace,
+      printA4Grid: state.printA4Grid,
       dropInvoicePages: state.dropInvoicePages,
       stampSku: state.stampSku,
+      stampDateTime: state.stampDateTime,
+      storeQrUrl: state.storeQrEnabled ? state.storeQrUrl : '',
       comboSetting: state.comboSetting,
-      customMessage: state.customMessageEnabled ? state.customMessageText : ''
+      customMessage: state.customMessageEnabled ? state.customMessageText : '',
+      filterOrderIds: state.separateOrdersEnabled ? state.filterOrderIds : []
     };
 
     if (state.comboSetting === 'separate_pdf') {
@@ -1444,7 +1762,8 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Failed to generate split PDFs: ' + err.message);
       }
     } else {
-      showProgress('Generating Clean Sorted PDF...', 20, 'Assembling print-ready thermal pages...');
+      const progressLabel = state.printA4Grid ? 'Arranging A4 4-in-1 Multi-Label Grid...' : 'Generating Clean Sorted PDF...';
+      showProgress(progressLabel, 20, 'Assembling print-ready pages...');
 
       try {
         const finalPdfBytes = await window.EvoriaPDF.generateSortedPDF(
@@ -1452,9 +1771,10 @@ document.addEventListener('DOMContentLoaded', () => {
           (pct, msg) => updateProgress(pct, msg)
         );
 
+        const layoutSuffix = state.printA4Grid ? 'A4_4in1' : (state.trimWhitespace ? 'Thermal_4x4' : 'Thermal_4x6');
         triggerDownload(
           finalPdfBytes,
-          `EvoriaBloom_${state.platform.toUpperCase()}_Sorted_Labels_${timestamp}.pdf`
+          `EvoriaBloom_${state.platform.toUpperCase()}_${layoutSuffix}_Labels_${timestamp}.pdf`
         );
 
         hideProgress();
@@ -1533,6 +1853,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
 
         hideProgress();
+        if (window.confetti) window.confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
         showToast('📋 Warehouse SKU Pick List downloaded!');
 
         const activeFileNames = (state.uploadedFiles && state.uploadedFiles.length > 0)

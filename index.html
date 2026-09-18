@@ -62,6 +62,12 @@
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+  <script src="qrcode.min.js"></script>
+  <script>
+    if (!window.QRCode) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>');
+    }
+  </script>
 
   <!-- Firebase App, Auth & Firestore SDKs (Compat v10 for clean browser usage) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
@@ -404,41 +410,56 @@
     <div id="workspace-section" class="hidden space-y-6">
       
       <!-- Top Stats & Primary Actions Bar -->
-      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/90 shadow-sm flex flex-col lg:flex-row items-center justify-between gap-4 aesthetic-card">
         
         <!-- Stats Badges -->
-        <div class="flex items-center gap-2.5 flex-wrap">
-          <span id="stat-labels-count" class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/70">
-            6 labels
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="stat-labels-count" class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/70 shadow-xs flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <span id="stat-labels-val">0</span> Labels
           </span>
           <span id="stat-skus-count" class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            6 unique SKUs
+            0 SKUs
+          </span>
+          <span id="stat-single-count" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+            0 Single
+          </span>
+          <span id="stat-combo-count" class="px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/70">
+            0 Combo
           </span>
           <span id="stat-courier-badge" class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/70">
-            <span id="stat-courier-count">3 courier partners</span>
+            <span id="stat-courier-count">0 couriers</span>
           </span>
         </div>
 
         <!-- Right Quick Actions -->
-        <div class="flex items-center gap-3 w-full sm:w-auto">
+        <div class="flex items-center gap-2.5 flex-wrap sm:flex-nowrap w-full lg:w-auto">
           <!-- Start Over Button -->
-          <button id="start-over-btn" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300/80 transition-all flex items-center justify-center gap-1.5">
+          <button id="start-over-btn" class="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300/80 transition-all flex items-center justify-center gap-1.5 btn-lift">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
             Start Over
           </button>
 
+          <!-- Copy All SKUs Button -->
+          <button id="copy-skus-btn" class="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 transition-all flex items-center justify-center gap-1.5 btn-lift" title="Copy all SKUs to clipboard">
+            <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+            </svg>
+            Copy SKUs
+          </button>
+
           <!-- Download Pick List / Manifest Button (2nd PDF) -->
-          <button id="download-picklist-btn" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center justify-center gap-1.5" title="Download 1-page warehouse item picklist">
+          <button id="download-picklist-btn" class="px-4 py-2.5 rounded-xl text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all flex items-center justify-center gap-1.5 btn-lift" title="Download 1-page warehouse item picklist">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
             </svg>
-            SKU Pick List (PDF)
+            Pick List (PDF)
           </button>
 
           <!-- Generate Sorted PDF Button -->
-          <button id="generate-pdf-btn" class="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2">
+          <button id="generate-pdf-btn" class="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-800 shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 btn-lift">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
             </svg>
@@ -451,99 +472,116 @@
       <!-- Main Workspace 2-Column Split -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        <!-- Left Panel: Sort & Crop Controls (Images 4 & 5) -->
-        <div class="lg:col-span-6 space-y-5">
+        <!-- Left Panel: Sort & Crop Controls -->
+        <div class="lg:col-span-6 space-y-4">
           
-          <!-- 1. Sort Type (Meesho) -->
-          <div id="sort-type-container" class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3">
+          <!-- 1. Print & Paper Layout Selector (Premium) -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3 aesthetic-card">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Sort Type</span>
+              <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                </svg>
+                Print &amp; Paper Layout
+              </span>
+              <span id="layout-active-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                Thermal 4x6 Roll
+              </span>
+            </div>
+
+            <!-- Layout Options Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button id="layout-btn-thermal-4x6" type="button" class="p-2.5 rounded-xl border text-center transition-all bg-blue-50/80 border-blue-500 text-blue-700 shadow-xs font-semibold">
+                <div class="text-base mb-1">🏷️</div>
+                <div class="text-xs font-bold">Thermal 4x6</div>
+                <div class="text-[10px] text-slate-500 font-normal">Crop invoice</div>
+              </button>
+
+              <button id="layout-btn-thermal-4x4" type="button" class="p-2.5 rounded-xl border text-center transition-all bg-white border-slate-200 hover:border-slate-300 text-slate-700 font-medium">
+                <div class="text-base mb-1">📐</div>
+                <div class="text-xs font-bold">Thermal 4x4</div>
+                <div class="text-[10px] text-slate-500 font-normal">Square roll</div>
+              </button>
+
+              <button id="layout-btn-a4-grid" type="button" class="p-2.5 rounded-xl border text-center transition-all bg-white border-slate-200 hover:border-slate-300 text-slate-700 font-medium">
+                <div class="text-base mb-1">📑</div>
+                <div class="text-xs font-bold">A4 4-in-1</div>
+                <div class="text-[10px] text-slate-500 font-normal">4 labels/page</div>
+              </button>
+
+              <button id="layout-btn-full-page" type="button" class="p-2.5 rounded-xl border text-center transition-all bg-white border-slate-200 hover:border-slate-300 text-slate-700 font-medium">
+                <div class="text-base mb-1">📄</div>
+                <div class="text-xs font-bold">Full Sheet</div>
+                <div class="text-[10px] text-slate-500 font-normal">Keep invoice</div>
+              </button>
+            </div>
+
+            <!-- Amazon Drop Invoice Toggle (Special Amazon Mode) -->
+            <div id="amazon-crop-options" class="pt-2 border-t border-slate-100 hidden">
+              <label class="flex items-start gap-3 cursor-pointer select-none">
+                <input type="checkbox" id="chk-drop-invoice-stamp" checked class="custom-checkbox mt-0.5">
+                <div>
+                  <div class="text-xs font-semibold text-slate-800">Drop Amazon invoice pages &amp; stamp SKU</div>
+                  <div class="text-[11px] text-slate-500">Stamps [SKU: ...] and Qty banner directly on the label.</div>
+                </div>
+              </label>
+            </div>
+
+            <!-- Hidden Checkboxes for programmatic state binding -->
+            <input type="checkbox" id="chk-crop-labels" class="hidden" checked>
+            <input type="checkbox" id="chk-trim-whitespace" class="hidden">
+          </div>
+
+          <!-- 2. Sort Type (SKU vs Courier) & Direction -->
+          <div id="sort-type-container" class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3 aesthetic-card">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Sorting Strategy</span>
               <button id="how-sorting-works-btn" class="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                How sorting works
+                Why sort?
               </button>
             </div>
 
             <div class="p-1 bg-slate-100 rounded-xl flex items-center">
-              <button id="sort-type-sku" class="flex-1 py-2 rounded-lg text-sm font-semibold bg-white text-blue-700 shadow-sm border border-slate-200/80 transition-all">
-                📦 SKU
+              <button id="sort-type-sku" class="flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold bg-white text-blue-700 shadow-xs border border-slate-200/80 transition-all">
+                📦 Group by SKU
               </button>
-              <button id="sort-type-courier" class="flex-1 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-800 transition-all">
-                🚚 Courier Partner
+              <button id="sort-type-courier" class="flex-1 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-500 hover:text-slate-800 transition-all">
+                🚚 Group by Courier
               </button>
             </div>
-          </div>
 
-          <!-- 2. Sort by (SKU Name vs Label Count + Asc/Desc) -->
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Sort by</span>
-              
+            <div class="flex items-center justify-between pt-1 border-t border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Order by:</span>
+                <button id="sort-by-name" class="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                  Name (A-Z)
+                </button>
+                <button id="sort-by-count" class="px-3 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 border border-transparent">
+                  Qty Count
+                </button>
+              </div>
+
               <div class="flex items-center gap-1">
                 <button id="sort-dir-asc" class="p-1.5 rounded-lg bg-blue-100 text-blue-700 border border-blue-200 transition-all" title="Ascending Order">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
                   </svg>
                 </button>
                 <button id="sort-dir-desc" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 transition-all" title="Descending Order">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                   </svg>
                 </button>
               </div>
             </div>
-
-            <div class="flex items-center gap-2">
-              <button id="sort-by-name" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-blue-700 shadow-sm border border-slate-200">
-                SKU Name
-              </button>
-              <button id="sort-by-count" class="px-3.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 border border-transparent">
-                No. of Labels
-              </button>
-            </div>
           </div>
 
-          <!-- 3. Trim & Crop Options -->
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-4">
-            <span class="text-xs font-bold text-slate-800 uppercase tracking-wider block">Trim &amp; Crop</span>
-            
-            <!-- Meesho & Flipkart Options -->
-            <div id="meesho-flipkart-crop-options" class="space-y-3">
-              <label class="flex items-start gap-3 cursor-pointer select-none">
-                <input type="checkbox" id="chk-crop-labels" class="custom-checkbox mt-0.5">
-                <div>
-                  <div class="text-sm font-semibold text-slate-800">Crop labels (remove invoice section)</div>
-                  <div class="text-xs text-slate-500">Removes the tax invoice block below the label for thermal printers.</div>
-                </div>
-              </label>
-
-              <label class="flex items-start gap-3 cursor-pointer select-none">
-                <input type="checkbox" id="chk-trim-whitespace" class="custom-checkbox mt-0.5">
-                <div>
-                  <div class="text-sm font-semibold text-slate-800">Trim whitespace (4 x 4 label size)</div>
-                  <div class="text-xs text-slate-500">Cuts extra blank area to save paper on square thermal rolls.</div>
-                </div>
-              </label>
-            </div>
-
-            <!-- Amazon Options -->
-            <div id="amazon-crop-options" class="space-y-3 hidden">
-              <label class="flex items-start gap-3 cursor-pointer select-none">
-                <input type="checkbox" id="chk-drop-invoice-stamp" checked class="custom-checkbox mt-0.5">
-                <div>
-                  <div class="text-sm font-semibold text-slate-800">Drop invoice pages &amp; stamp SKU</div>
-                  <div class="text-xs text-slate-500">Removes the invoice page(s); stamps [SKU] (Qty: N) directly on the label.</div>
-                </div>
-              </label>
-            </div>
-
-          </div>
-
-          <!-- 4. Combo / Multi-qty Orders -->
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3">
-            <span class="text-xs font-bold text-slate-800 uppercase tracking-wider block">Combo / Multi-qty Orders</span>
+          <!-- 3. Combo / Multi-qty Orders -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3 aesthetic-card">
+            <span class="text-xs font-bold text-slate-800 uppercase tracking-wider block">Combo &amp; Multi-Quantity Orders</span>
             
             <div class="p-1 bg-slate-100 rounded-xl flex items-center">
               <button id="combo-no-pref" class="flex-1 py-2 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-sm">
@@ -562,66 +600,174 @@
             </p>
           </div>
 
-          <!-- 5. Custom Message -->
-          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3">
+          <!-- 4. Label Stamps & Branding (Date, QR Code & Message) -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-4 aesthetic-card">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Custom Message</span>
-              <button id="view-sample-message-btn" class="text-xs font-semibold text-blue-600 hover:text-blue-700">
-                View sample
-              </button>
+              <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                </svg>
+                Label Stamps &amp; Branding
+              </span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                Premium
+              </span>
             </div>
 
+            <!-- Date and Time Stamp Checkbox -->
             <label class="flex items-start gap-3 cursor-pointer select-none">
-              <input type="checkbox" id="chk-custom-message" class="custom-checkbox mt-0.5">
+              <input type="checkbox" id="chk-stamp-datetime" class="custom-checkbox mt-0.5">
               <div>
-                <div class="text-sm font-semibold text-slate-800">Print custom message on labels</div>
-                <div class="text-xs text-slate-500">Adds your brand text or unboxing note below each label.</div>
+                <div class="text-xs font-semibold text-slate-800">Print packing date &amp; time stamp</div>
+                <div class="text-[11px] text-slate-500">Stamps dispatch timestamp (e.g. Packed: 18-Sep-2026 07:30 PM) on label margin.</div>
               </div>
             </label>
 
-            <div id="custom-message-input-wrapper" class="pt-2 hidden">
-              <input type="text" id="txt-custom-message" value="★ Please make a 360° unboxing video for return claims ★" placeholder="Enter custom message to print..." class="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800">
+            <!-- Store / WhatsApp QR Code Checkbox -->
+            <div class="space-y-2 pt-2 border-t border-slate-100">
+              <label class="flex items-start gap-3 cursor-pointer select-none">
+                <input type="checkbox" id="chk-store-qr" class="custom-checkbox mt-0.5">
+                <div>
+                  <div class="text-xs font-semibold text-slate-800">Stamp Store or WhatsApp QR Code</div>
+                  <div class="text-[11px] text-slate-500">Adds your custom QR code on label for customer repeat orders &amp; support.</div>
+                </div>
+              </label>
+
+              <div id="store-qr-input-wrapper" class="pt-1 pl-7 hidden">
+                <input type="text" id="txt-store-qr" placeholder="e.g. https://wa.me/919876543210 or your store link" class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 bg-slate-50 focus:bg-white">
+              </div>
+            </div>
+
+            <!-- Custom Message Checkbox -->
+            <div class="space-y-2 pt-2 border-t border-slate-100">
+              <div class="flex items-center justify-between">
+                <label class="flex items-start gap-3 cursor-pointer select-none">
+                  <input type="checkbox" id="chk-custom-message" class="custom-checkbox mt-0.5">
+                  <div>
+                    <div class="text-xs font-semibold text-slate-800">Print custom message on labels</div>
+                    <div class="text-[11px] text-slate-500">Adds unboxing notice or brand text neatly on label.</div>
+                  </div>
+                </label>
+                <button id="view-sample-message-btn" class="text-xs font-semibold text-blue-600 hover:text-blue-700">
+                  View sample
+                </button>
+              </div>
+
+              <div id="custom-message-input-wrapper" class="pt-1 pl-7 hidden">
+                <input type="text" id="txt-custom-message" value="★ Please make a 360° unboxing video for return claims ★" placeholder="Enter custom message to print..." class="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-slate-800 bg-slate-50 focus:bg-white">
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 5. Separate / Review Orders (Order ID Filter) -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3 aesthetic-card">
+            <div class="flex items-center justify-between">
+              <label class="flex items-start gap-3 cursor-pointer select-none">
+                <input type="checkbox" id="chk-separate-orders" class="custom-checkbox mt-0.5">
+                <div>
+                  <div class="text-xs font-bold text-slate-800 uppercase tracking-wider">Separate Review Orders</div>
+                  <div class="text-[11px] text-slate-500">Filter or isolate urgent/review orders by Order ID or AWB.</div>
+                </div>
+              </label>
+            </div>
+
+            <div id="separate-orders-wrapper" class="hidden pt-1 space-y-1.5">
+              <textarea id="txt-separate-orders" rows="2" placeholder="Paste Order IDs or AWBs (one per line or comma-separated)..." class="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-slate-800 bg-slate-50 focus:bg-white"></textarea>
+              <div class="text-[10px] text-slate-400">Matching orders will be isolated into a separate priority batch.</div>
             </div>
           </div>
 
         </div>
 
-        <!-- Right Panel: Interactive SKU Order List (Images 4 & 5) -->
-        <div class="lg:col-span-6 bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-4">
+        <!-- Right Panel: Live Interactive Preview & SKU Order List -->
+        <div class="lg:col-span-6 space-y-4">
           
-          <!-- SKU Order Header -->
-          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                </svg>
-                SKU Order
-              </span>
-              <span class="text-[11px] text-slate-400 font-normal">(Drag to reorder)</span>
+          <!-- Live Interactive Label Preview Card -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-3 aesthetic-card">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Live Label Preview
+                </span>
+                <span id="live-preview-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                  Thermal 4x6
+                </span>
+              </div>
+
+              <!-- Prev / Next Navigation -->
+              <div class="flex items-center gap-1.5">
+                <button id="live-prev-btn" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all flex items-center gap-1" title="Previous Label">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                  </svg>
+                  Prev
+                </button>
+                <span id="live-page-indicator" class="text-xs font-mono font-semibold text-slate-600 px-1.5">
+                  1 / 1
+                </span>
+                <button id="live-next-btn" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all flex items-center gap-1" title="Next Label">
+                  Next
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            <!-- Preview Map Button -->
-            <button id="preview-map-btn" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all flex items-center gap-1.5">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+            <!-- Preview Canvas Container -->
+            <div class="preview-canvas-container p-3 bg-slate-50/80 rounded-xl flex flex-col items-center justify-center min-h-[220px] max-h-[340px] border border-slate-200/80">
+              <canvas id="live-preview-canvas" class="max-h-[270px] w-auto max-w-full rounded-lg shadow-sm bg-white border border-slate-200"></canvas>
+            </div>
+
+            <!-- Active Label Info Strip -->
+            <div id="live-label-info" class="flex items-center justify-between text-[11px] text-slate-600 px-1 font-medium">
+              <div class="truncate max-w-[240px]">SKU: <span id="live-sku-val" class="font-bold text-slate-900 font-mono">-</span></div>
+              <div class="flex items-center gap-2 text-slate-500">
+                <span id="live-courier-val">-</span>
+                <span>·</span>
+                <span id="live-qty-val">Qty: 1</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- SKU Order Card -->
+          <div class="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm space-y-4 aesthetic-card">
+            <!-- SKU Order Header -->
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                  </svg>
+                  SKU Packing Order
+                </span>
+                <span class="text-[11px] text-slate-400 font-normal">(Drag to reorder)</span>
+              </div>
+
+              <!-- Preview Map Button -->
+              <button id="preview-map-btn" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all flex items-center gap-1.5 btn-lift">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                </svg>
+                Preview Grid
+              </button>
+            </div>
+
+            <!-- SKU Quick Search Filter -->
+            <div class="relative">
+              <input type="text" id="sku-search-input" placeholder="Search SKU in list..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+              <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
-              Preview Map
-            </button>
-          </div>
+            </div>
 
-          <!-- SKU Quick Search Filter -->
-          <div class="relative">
-            <input type="text" id="sku-search-input" placeholder="Search SKU in list..." class="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
-            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
-          </div>
-
-          <!-- Draggable SKU List Container -->
-          <div id="sku-list-container" class="space-y-2 max-h-[580px] overflow-y-auto pr-1">
-            <!-- Dynamically injected SKU rows -->
+            <!-- Draggable SKU List Container -->
+            <div id="sku-list-container" class="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+              <!-- Dynamically injected SKU rows -->
+            </div>
           </div>
 
         </div>
@@ -1084,9 +1230,9 @@
   </div>
 
   <!-- Scripts -->
-  <script src="database.js?v=4.0"></script>
-  <script src="pdf-processor.js?v=4.0"></script>
-  <script src="app.js?v=4.0"></script>
+  <script src="database.js?v=4.2"></script>
+  <script src="pdf-processor.js?v=4.2"></script>
+  <script src="app.js?v=4.2"></script>
 
 </body>
 </html>

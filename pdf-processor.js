@@ -30,8 +30,18 @@ window.EvoriaPDF = (function () {
   ];
 
   /**
-   * Parse uploaded PDF files and extract orders/labels
+   * Safely sanitize text to avoid WinAnsi encoding errors in StandardFonts (Helvetica)
    */
+  function sanitizeWinAnsiText(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/[✓✔]/g, '[v]')
+      .replace(/[★☆]/g, '*')
+      .replace(/[•●·]/g, '-')
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+  }
   async function parseFiles(files, platform, onProgress) {
     const orders = [];
     const sourceFiles = [];
@@ -95,6 +105,7 @@ window.EvoriaPDF = (function () {
           courier: parsed.courier,
           orderId: parsed.orderId,
           awb: parsed.awb,
+          cropY: parsed.cropY || 488,
           isInvoice: isInvoice,
           rawText: fullRawText
         });
@@ -308,7 +319,51 @@ window.EvoriaPDF = (function () {
       sku = orderId !== `ORD-${pageNum}` ? `SKU-${orderId}` : `SKU-PAGE-${pageNum}`;
     }
 
-    return { sku, qty, courier, orderId, awb };
+    // 7. Dynamic Crop Coordinate Detection (Separating Label from Tax Invoice)
+    let cropY = null;
+
+    // Search for "TAX INVOICE" header in the lower half of the page
+    const taxInvoiceItem = items.find(it => 
+      it.str && 
+      /TAX\s*INVOICE/i.test(it.str) && 
+      it.transform && 
+      it.transform[5] > (viewport.height * 0.25) && 
+      it.transform[5] < (viewport.height * 0.70)
+    );
+
+    // Search for "SKU" table column header
+    const skuHeaderItem = items.find(it => 
+      it.str && 
+      /^\s*SKU\s*(?:Code|ID)?\s*$/i.test(it.str.trim()) && 
+      it.transform && 
+      it.transform[5] > (viewport.height * 0.38)
+    );
+
+    // Search for Order No header
+    const orderNoItem = items.find(it => 
+      it.str && 
+      /(?:Sub\s*Order\s*No|Order\s*No|Order\s*ID)/i.test(it.str) && 
+      it.transform && 
+      it.transform[5] > (viewport.height * 0.38)
+    );
+
+    if (taxInvoiceItem && taxInvoiceItem.transform && taxInvoiceItem.transform[5] > 0) {
+      // The TAX INVOICE baseline is ~13.5 pt below the table's bottom border line.
+      // Setting cropY to (taxInvoice baseline + 12.5 pt) cuts precisely at the bottom border,
+      // completely preserving all SKU items and table lines while removing 100% of the invoice.
+      cropY = Math.round(taxInvoiceItem.transform[5] + 12.5);
+    } else if (skuHeaderItem && skuHeaderItem.transform && skuHeaderItem.transform[5] > 0) {
+      cropY = Math.round(skuHeaderItem.transform[5] - 23.5);
+    } else if (orderNoItem && orderNoItem.transform && orderNoItem.transform[5] > 0) {
+      cropY = Math.round(orderNoItem.transform[5] - 23.5);
+    } else {
+      cropY = 488;
+    }
+
+    // Ensure cropY is clamped within safe bounds for standard A4 labels
+    cropY = Math.max(380, Math.min(500, cropY));
+
+    return { sku, qty, courier, orderId, awb, cropY };
   }
 
   function cleanCandidateSku(str) {
@@ -348,8 +403,11 @@ window.EvoriaPDF = (function () {
       const ctx = canvasElement.getContext('2d');
 
       if (options.cropHalf) {
+        const pageHeight = page.getViewport({ scale: 1.0 }).height;
+        const cropY = order.cropY || 488;
+        const visiblePdfHeight = Math.max(300, (pageHeight - cropY) + 6);
         canvasElement.width = viewport.width;
-        canvasElement.height = Math.round(viewport.height * 0.52);
+        canvasElement.height = Math.round(visiblePdfHeight * scale);
         ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
         await page.render({
@@ -398,11 +456,35 @@ window.EvoriaPDF = (function () {
   }
 
   /**
-   * Assemble PDF pages with crop and stamping rules
+   * Generates a PNG Data URL for a given URL or text using window.QRCode
+   */
+  async function generateQrCodeDataUrl(text) {
+    if (!text || !text.trim()) return null;
+    try {
+      if (window.QRCode) {
+        const div = document.createElement('div');
+        new window.QRCode(div, {
+          text: text.trim(),
+          width: 120,
+          height: 120,
+          correctLevel: window.QRCode.CorrectLevel.M
+        });
+        await new Promise(r => setTimeout(r, 50));
+        const canvas = div.querySelector('canvas');
+        if (canvas) return canvas.toDataURL('image/png');
+      }
+    } catch (e) {
+      console.warn('QR generation note:', e);
+    }
+    return null;
+  }
+
+  /**
+   * Assemble PDF pages with crop, thermal margins, and stamping rules (1 Label per Page)
    */
   async function assemblePdfDocument(orderedList, sourceFiles, options, onProgress) {
     const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
-    const { cropLabels, trimWhitespace, stampSku, customMessage } = options;
+    const { cropLabels, trimWhitespace, stampSku, stampDateTime, customMessage, storeQrUrl } = options;
 
     // Load source PDF documents into cache
     const pdfDocsCache = new Map();
@@ -415,6 +497,19 @@ window.EvoriaPDF = (function () {
     const outDoc = await PDFDocument.create();
     const fontHelvetica = await outDoc.embedFont(StandardFonts.Helvetica);
     const fontHelveticaBold = await outDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Prepare Store QR code if URL provided
+    let storeQrImage = null;
+    if (storeQrUrl && storeQrUrl.trim().length > 0) {
+      const qrDataUrl = await generateQrCodeDataUrl(storeQrUrl.trim());
+      if (qrDataUrl) {
+        try {
+          storeQrImage = await outDoc.embedPng(qrDataUrl);
+        } catch (e) {
+          console.warn('Failed to embed QR code:', e);
+        }
+      }
+    }
 
     const total = orderedList.length;
 
@@ -436,23 +531,25 @@ window.EvoriaPDF = (function () {
       const isFullSheet = height > 500; // standard A4 sheet
 
       if (shouldCrop && isFullSheet) {
+        const targetCropY = ord.cropY || 488;
         let cropX = 0;
-        let cropY = 504; // Cut right below Product Details divider line (removes 100% of tax invoice!)
+        let cropY = Math.max(380, Math.min(500, targetCropY));
         let cropW = width;
-        let cropH = height - 504; // Keep top shipping label
+        let cropH = height - cropY;
 
         if (trimWhitespace) {
           // Clean thermal 4x6 / 4x4 crop
           cropX = 10;
           cropW = width - 20;
-          cropY = 504;
-          cropH = 330;
+          cropY = Math.max(380, Math.min(500, targetCropY));
+          // Trim the 8 pt top whitespace while ensuring entire label fits cleanly
+          cropH = Math.max(330, (height - 8) - cropY);
         }
 
         newPage.setCropBox(cropX, cropY, cropW, cropH);
         newPage.setMediaBox(cropX, cropY, cropW, cropH);
 
-        // Stamp SKU badge if requested
+        // Stamp SKU badge if requested (e.g. Amazon)
         if (stampSku) {
           const badgeText = `[SKU: ${ord.sku}]  (QTY: ${ord.qty})  ${ord.courier}`;
           const fontSize = 8.5;
@@ -479,20 +576,69 @@ window.EvoriaPDF = (function () {
           });
         }
 
+        // Stamp Processing Date and Time if enabled
+        if (stampDateTime) {
+          const now = new Date();
+          const day = String(now.getDate()).padStart(2, '0');
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const mon = months[now.getMonth()];
+          const yr = now.getFullYear();
+          let hr = now.getHours();
+          const ampm = hr >= 12 ? 'PM' : 'AM';
+          hr = hr % 12 || 12;
+          const min = String(now.getMinutes()).padStart(2, '0');
+          const dateText = `Packed: ${day}-${mon}-${yr} ${hr}:${min} ${ampm}`;
+          const dtSize = 6.8;
+          const dtWidth = fontHelvetica.widthOfTextAtSize(dateText, dtSize);
+          const dtX = Math.max(cropX + 12, (cropX + cropW) - dtWidth - 12);
+          const dtY = height - 10;
+          newPage.drawText(dateText, {
+            x: dtX,
+            y: dtY,
+            size: dtSize,
+            font: fontHelvetica,
+            color: rgb(0.35, 0.4, 0.45)
+          });
+        }
+
         // Stamp Custom Message if enabled
         if (customMessage && customMessage.trim().length > 0) {
-          const msgText = customMessage.trim();
-          const fontSize = 7.5;
-          const msgWidth = fontHelvetica.widthOfTextAtSize(msgText, fontSize);
-          const msgX = Math.max(cropX + 8, cropX + (cropW - msgWidth) / 2);
-          const msgY = cropY + 6;
+          const msgText = sanitizeWinAnsiText(customMessage.trim());
+          if (msgText.length > 0) {
+            const fontSize = 7.5;
+            const msgWidth = fontHelvetica.widthOfTextAtSize(msgText, fontSize);
+            const msgX = Math.max(cropX + 8, cropX + (cropW - msgWidth) / 2);
+            const msgY = height - 12; // Neatly in top margin to prevent overlapping SKU/Order No
 
-          newPage.drawText(msgText, {
-            x: msgX,
-            y: msgY,
-            size: fontSize,
-            font: fontHelvetica,
-            color: rgb(0.15, 0.15, 0.15)
+            newPage.drawText(msgText, {
+              x: msgX,
+              y: msgY,
+              size: fontSize,
+              font: fontHelvetica,
+              color: rgb(0.15, 0.15, 0.15)
+            });
+          }
+        }
+
+        // Stamp Store QR Code if available
+        if (storeQrImage) {
+          const qrBoxSize = 36;
+          const qrX = Math.max(cropX + 8, cropX + cropW - qrBoxSize - 8);
+          const qrY = height - qrBoxSize - 8;
+          newPage.drawRectangle({
+            x: qrX - 2,
+            y: qrY - 2,
+            width: qrBoxSize + 4,
+            height: qrBoxSize + 4,
+            color: rgb(1, 1, 1),
+            borderColor: rgb(0.82, 0.86, 0.9),
+            borderWidth: 0.5
+          });
+          newPage.drawImage(storeQrImage, {
+            x: qrX,
+            y: qrY,
+            width: qrBoxSize,
+            height: qrBoxSize
           });
         }
       } else {
@@ -518,6 +664,22 @@ window.EvoriaPDF = (function () {
           });
         }
 
+        if (stampDateTime) {
+          const now = new Date();
+          const day = String(now.getDate()).padStart(2, '0');
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const mon = months[now.getMonth()];
+          const yr = now.getFullYear();
+          const dateText = `Packed: ${day}-${mon}-${yr}`;
+          newPage.drawText(dateText, {
+            x: width - 120,
+            y: height - 15,
+            size: 7,
+            font: fontHelvetica,
+            color: rgb(0.3, 0.35, 0.4)
+          });
+        }
+
         if (customMessage && customMessage.trim().length > 0) {
           newPage.drawText(customMessage.trim(), {
             x: 25,
@@ -534,7 +696,145 @@ window.EvoriaPDF = (function () {
   }
 
   /**
-   * Generate Sorted PDF (Single PDF or handles Combo grouping)
+   * Assemble A4 4-in-1 Multi-Label Grid Document (4 Labels per Page)
+   * Arranges 4 cropped labels on a standard A4 sheet (595.28 x 841.89 pt) in a 2x2 grid.
+   * Includes dashed cutting guides. Saves 75% paper for sellers using A4 sticker sheets.
+   */
+  async function assembleA4GridPdfDocument(orderedList, sourceFiles, options, onProgress) {
+    const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+    const { stampDateTime, storeQrUrl } = options;
+
+    const pdfDocsCache = new Map();
+    for (let i = 0; i < sourceFiles.length; i++) {
+      const src = sourceFiles[i];
+      const doc = await PDFDocument.load(src.buffer.slice(0));
+      pdfDocsCache.set(i, doc);
+    }
+
+    const outDoc = await PDFDocument.create();
+    const fontHelvetica = await outDoc.embedFont(StandardFonts.Helvetica);
+    const fontHelveticaBold = await outDoc.embedFont(StandardFonts.HelveticaBold);
+
+    let storeQrImage = null;
+    if (storeQrUrl && storeQrUrl.trim().length > 0) {
+      const qrDataUrl = await generateQrCodeDataUrl(storeQrUrl.trim());
+      if (qrDataUrl) {
+        try {
+          storeQrImage = await outDoc.embedPng(qrDataUrl);
+        } catch (e) {
+          console.warn('Failed to embed QR code for A4 grid:', e);
+        }
+      }
+    }
+
+    const total = orderedList.length;
+    const a4Width = 595.28;
+    const a4Height = 841.89;
+
+    const quads = [
+      { x: 14, y: 430, w: 274, h: 395 }, // Quadrant 1: Top-Left
+      { x: 308, y: 430, w: 274, h: 395 }, // Quadrant 2: Top-Right
+      { x: 14, y: 15, w: 274, h: 395 },  // Quadrant 3: Bottom-Left
+      { x: 308, y: 15, w: 274, h: 395 }  // Quadrant 4: Bottom-Right
+    ];
+
+    const totalPages = Math.ceil(total / 4);
+
+    for (let pgIdx = 0; pgIdx < totalPages; pgIdx++) {
+      const a4Page = outDoc.addPage([a4Width, a4Height]);
+
+      if (onProgress) {
+        const pct = Math.min(95, Math.round(((pgIdx + 1) / totalPages) * 90) + 5);
+        onProgress(pct, `Arranging A4 sheet ${pgIdx + 1} of ${totalPages}...`);
+      }
+
+      // Draw dashed center cut guides
+      a4Page.drawLine({
+        start: { x: a4Width / 2, y: 10 },
+        end: { x: a4Width / 2, y: a4Height - 10 },
+        thickness: 0.5,
+        color: rgb(0.78, 0.82, 0.88),
+        dashArray: [4, 4]
+      });
+      a4Page.drawLine({
+        start: { x: 10, y: a4Height / 2 },
+        end: { x: a4Width - 10, y: a4Height / 2 },
+        thickness: 0.5,
+        color: rgb(0.78, 0.82, 0.88),
+        dashArray: [4, 4]
+      });
+
+      for (let q = 0; q < 4; q++) {
+        const itemIdx = pgIdx * 4 + q;
+        if (itemIdx >= total) break;
+
+        const ord = orderedList[itemIdx];
+        const srcDoc = pdfDocsCache.get(ord.fileIndex);
+        const srcPage = srcDoc.getPage(ord.pageIndex);
+        const quad = quads[q];
+
+        const targetCropY = ord.cropY || 488;
+        const cropX = 10;
+        const cropY = Math.max(380, Math.min(500, targetCropY));
+        const cropW = ord.width - 20;
+        const cropH = Math.max(330, (ord.height - 8) - cropY);
+
+        // Embed the cropped label quadrant
+        const embedded = await outDoc.embedPage(srcPage, {
+          left: cropX,
+          bottom: cropY,
+          right: cropX + cropW,
+          top: cropY + cropH
+        });
+
+        const scale = Math.min(quad.w / cropW, (quad.h - 18) / cropH);
+        const drawW = cropW * scale;
+        const drawH = cropH * scale;
+        const drawX = quad.x + (quad.w - drawW) / 2;
+        const drawY = quad.y + (quad.h - 18 - drawH) / 2;
+
+        a4Page.drawPage(embedded, {
+          x: drawX,
+          y: drawY,
+          width: drawW,
+          height: drawH
+        });
+
+        // Top SKU header strip on each quadrant
+        const badgeText = `[SKU: ${ord.sku}]  (QTY: ${ord.qty})  ${ord.courier}`;
+        a4Page.drawText(badgeText, {
+          x: quad.x + 4,
+          y: quad.y + quad.h - 12,
+          size: 7,
+          font: fontHelveticaBold,
+          color: rgb(0.1, 0.2, 0.4)
+        });
+
+        // Date timestamp if enabled
+        if (stampDateTime) {
+          const now = new Date();
+          const day = String(now.getDate()).padStart(2, '0');
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const mon = months[now.getMonth()];
+          const yr = now.getFullYear();
+          const dateText = `Packed: ${day}-${mon}-${yr}`;
+          const dtW = fontHelvetica.widthOfTextAtSize(dateText, 6);
+          a4Page.drawText(dateText, {
+            x: quad.x + quad.w - dtW - 4,
+            y: quad.y + quad.h - 12,
+            size: 6,
+            font: fontHelvetica,
+            color: rgb(0.4, 0.45, 0.5)
+          });
+        }
+      }
+    }
+
+    return await outDoc.save();
+  }
+
+  /**
+   * Generate Sorted PDF (Single PDF or handles Combo grouping, A4 grid, and order filters)
    */
   async function generateSortedPDF(config, onProgress) {
     const {
@@ -546,8 +846,12 @@ window.EvoriaPDF = (function () {
       comboSetting,
       cropLabels,
       trimWhitespace,
+      printA4Grid,
       stampSku,
-      customMessage
+      stampDateTime,
+      customMessage,
+      storeQrUrl,
+      filterOrderIds
     } = config;
 
     if (onProgress) onProgress(10, 'Initializing PDF generation engine...');
@@ -557,6 +861,21 @@ window.EvoriaPDF = (function () {
       if (dropInvoicePages && o.isInvoice) return false;
       return true;
     });
+
+    // Filter by specific order IDs if provided by user
+    if (filterOrderIds && Array.isArray(filterOrderIds) && filterOrderIds.length > 0) {
+      const filterSet = new Set(filterOrderIds.map(id => id.trim().toLowerCase()).filter(Boolean));
+      if (filterSet.size > 0) {
+        activeOrders = activeOrders.filter(o => {
+          const ordIdClean = (o.orderId || '').toLowerCase();
+          const awbClean = (o.awb || '').toLowerCase();
+          for (const f of filterSet) {
+            if (ordIdClean.includes(f) || awbClean.includes(f)) return true;
+          }
+          return false;
+        });
+      }
+    }
 
     let singleOrders = activeOrders.filter(o => o.qty <= 1);
     let comboOrders = activeOrders.filter(o => o.qty > 1);
@@ -571,7 +890,20 @@ window.EvoriaPDF = (function () {
       finalOrderedList = sortOrdersList(activeOrders, skuOrder, sortType);
     }
 
-    const options = { cropLabels, trimWhitespace, stampSku, customMessage };
+    const options = {
+      cropLabels,
+      trimWhitespace,
+      printA4Grid,
+      stampSku,
+      stampDateTime,
+      customMessage,
+      storeQrUrl
+    };
+
+    if (printA4Grid) {
+      return await assembleA4GridPdfDocument(finalOrderedList, sourceFiles, options, onProgress);
+    }
+
     return await assemblePdfDocument(finalOrderedList, sourceFiles, options, onProgress);
   }
 
@@ -589,24 +921,53 @@ window.EvoriaPDF = (function () {
       dropInvoicePages,
       cropLabels,
       trimWhitespace,
+      printA4Grid,
       stampSku,
-      customMessage
+      stampDateTime,
+      customMessage,
+      storeQrUrl,
+      filterOrderIds
     } = config;
 
     let activeOrders = orders.filter(o => !(dropInvoicePages && o.isInvoice));
+
+    if (filterOrderIds && Array.isArray(filterOrderIds) && filterOrderIds.length > 0) {
+      const filterSet = new Set(filterOrderIds.map(id => id.trim().toLowerCase()).filter(Boolean));
+      if (filterSet.size > 0) {
+        activeOrders = activeOrders.filter(o => {
+          const ordIdClean = (o.orderId || '').toLowerCase();
+          const awbClean = (o.awb || '').toLowerCase();
+          for (const f of filterSet) {
+            if (ordIdClean.includes(f) || awbClean.includes(f)) return true;
+          }
+          return false;
+        });
+      }
+    }
+
     let singleOrders = sortOrdersList(activeOrders.filter(o => o.qty <= 1), skuOrder, sortType);
     let comboOrders = sortOrdersList(activeOrders.filter(o => o.qty > 1), skuOrder, sortType);
 
-    const options = { cropLabels, trimWhitespace, stampSku, customMessage };
+    const options = {
+      cropLabels,
+      trimWhitespace,
+      printA4Grid,
+      stampSku,
+      stampDateTime,
+      customMessage,
+      storeQrUrl
+    };
+
+    const assemblerFn = printA4Grid ? assembleA4GridPdfDocument : assemblePdfDocument;
 
     if (onProgress) onProgress(10, 'Generating Single Orders PDF...');
     const singlePdfBytes = singleOrders.length > 0
-      ? await assemblePdfDocument(singleOrders, sourceFiles, options, (p, m) => onProgress(Math.round(p * 0.5), m))
+      ? await assemblerFn(singleOrders, sourceFiles, options, (p, m) => onProgress(Math.round(p * 0.5), m))
       : null;
 
     if (onProgress) onProgress(50, 'Generating Combo / Multi-qty Orders PDF...');
     const comboPdfBytes = comboOrders.length > 0
-      ? await assemblePdfDocument(comboOrders, sourceFiles, options, (p, m) => onProgress(50 + Math.round(p * 0.5), m))
+      ? await assemblerFn(comboOrders, sourceFiles, options, (p, m) => onProgress(50 + Math.round(p * 0.5), m))
       : null;
 
     return {
@@ -692,11 +1053,12 @@ window.EvoriaPDF = (function () {
     });
 
     page.drawText('#', { x: 40, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('SKU Name / Code', { x: 70, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('Orders', { x: 330, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('Total Pcs', { x: 390, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
-    page.drawText('Courier Partners', { x: 460, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
-
+    page.drawText('SKU Name / Code', { x: 65, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('Orders', { x: 315, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('Total Pcs', { x: 375, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('Courier Partners', { x: 440, y: currentY, size: 10, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+    page.drawText('Pick [ ]', { x: 520, y: currentY, size: 9, font: fontBold, color: rgb(0.2, 0.2, 0.2) });
+ 
     currentY -= 20;
 
     // Table Rows
@@ -716,19 +1078,30 @@ window.EvoriaPDF = (function () {
 
       page.drawText(`${idx + 1}`, { x: 40, y: currentY, size: 9, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
       
-      const cleanSku = item.sku.length > 40 ? item.sku.substring(0, 38) + '...' : item.sku;
-      page.drawText(cleanSku, { x: 70, y: currentY, size: 9, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
-      page.drawText(`${item.labelsCount}`, { x: 335, y: currentY, size: 9, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
-      page.drawText(`${item.totalPcs}`, { x: 395, y: currentY, size: 9, font: fontBold, color: rgb(0.1, 0.4, 0.8) });
+      const cleanSku = sanitizeWinAnsiText(item.sku.length > 36 ? item.sku.substring(0, 34) + '...' : item.sku);
+      page.drawText(cleanSku, { x: 65, y: currentY, size: 9, font: fontBold, color: rgb(0.1, 0.1, 0.1) });
+      page.drawText(`${item.labelsCount}`, { x: 320, y: currentY, size: 9, font: fontRegular, color: rgb(0.2, 0.2, 0.2) });
+      page.drawText(`${item.totalPcs}`, { x: 380, y: currentY, size: 9, font: fontBold, color: rgb(0.1, 0.4, 0.8) });
 
-      const couriersStr = Array.from(item.couriers).join(', ');
-      page.drawText(couriersStr.substring(0, 20), { x: 460, y: currentY, size: 8, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+      const couriersStr = sanitizeWinAnsiText(Array.from(item.couriers).join(', '));
+      page.drawText(couriersStr.substring(0, 15), { x: 440, y: currentY, size: 8, font: fontRegular, color: rgb(0.4, 0.4, 0.4) });
+
+      // Physical Pick Checkbox for warehouse staff
+      page.drawRectangle({
+        x: 526,
+        y: currentY - 2,
+        width: 11,
+        height: 11,
+        borderColor: rgb(0.65, 0.7, 0.75),
+        borderWidth: 0.8,
+        color: rgb(1, 1, 1)
+      });
 
       currentY -= 19;
     });
 
     // Footer note
-    page.drawText(`Generated by EvoriaBloom · 100% Free & Private Seller Utility`, {
+    page.drawText(`Generated by EvoriaBloom - 100% Free & Private Seller Utility`, {
       x: 180,
       y: 20,
       size: 8,

@@ -192,10 +192,66 @@ body {
   box-shadow: 0 4px 14px 0 rgba(19, 25, 33, 0.35);
 }
 
-.tab-btn.active-flipkart {
-  background-color: #2874f0 !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 14px 0 rgba(40, 116, 240, 0.35);
+/* Modern Aesthetic SaaS Enhancements */
+.aesthetic-card {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 10px 25px -5px rgba(15, 23, 42, 0.04);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.aesthetic-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 16px 32px -6px rgba(15, 23, 42, 0.08);
+}
+
+.ambient-glow {
+  position: absolute;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+}
+
+/* Interactive Button Hover Lift */
+.btn-lift {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.btn-lift:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 8px 20px -4px rgba(59, 130, 246, 0.25);
+}
+
+.btn-lift:active {
+  transform: translateY(0.5px);
+}
+
+/* Toast Notifications */
+.toast-notice {
+  animation: toastSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toastSlideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 16px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* Live Canvas Preview Card */
+.preview-canvas-container {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border: 1px solid #e2e8f0;
 }
 
 /* Loading Spinner */
