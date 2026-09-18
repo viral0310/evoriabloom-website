@@ -1,4 +1,4 @@
-﻿/**
+/**
  * EvoriaBloom - Universal Free Database & Storage Engine
  * Provides persistent local database storage (users, activity logs, statistics)
  * and optional Cloud Webhook synchronization (Google Sheets / REST API)
@@ -33,6 +33,8 @@ window.EvoriaDB = (function () {
     }
   }
 
+  const ADMIN_EMAIL = 'viraltada2001@gmail.com';
+
   // Initialize default admin user if none exists
   function init() {
     usersCache = _loadJSON(STORAGE_KEY_USERS, []);
@@ -40,9 +42,9 @@ window.EvoriaDB = (function () {
 
     if (usersCache.length === 0) {
       usersCache.push({
-        uid: 'seller_master',
-        displayName: 'Viral (Store Owner)',
-        email: 'seller@orealuxe.in',
+        uid: 'admin_viraltada',
+        displayName: 'Viral Tada (Admin)',
+        email: ADMIN_EMAIL,
         role: 'admin',
         createdAt: new Date().toISOString()
       });
@@ -81,17 +83,22 @@ window.EvoriaDB = (function () {
   }
 
   /**
-   * Get currently authenticated user session
+   * Get currently authenticated user session (Strict Admin Only)
    */
   function getActiveUser() {
-    return _loadJSON(STORAGE_KEY_SESSION, null);
+    const user = _loadJSON(STORAGE_KEY_SESSION, null);
+    if (user && user.email && user.email.toLowerCase().trim() !== ADMIN_EMAIL.toLowerCase()) {
+      localStorage.removeItem(STORAGE_KEY_SESSION);
+      return null;
+    }
+    return user;
   }
 
   /**
    * Set or clear active session
    */
   function setActiveUser(user) {
-    if (user) {
+    if (user && user.email && user.email.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase()) {
       _saveJSON(STORAGE_KEY_SESSION, user);
     } else {
       localStorage.removeItem(STORAGE_KEY_SESSION);

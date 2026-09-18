@@ -13,12 +13,13 @@ window.EvoriaFirebaseConfig = (function () {
   // Stored or Default Firebase Credentials
   // You can paste your credentials directly here:
   const DEFAULT_CONFIG = {
-    apiKey: "AIzaSyD-YOUR-API-KEY-HERE",
-    authDomain: "evoriabloom-seller.firebaseapp.com",
-    projectId: "evoriabloom-seller",
-    storageBucket: "evoriabloom-seller.appspot.com",
-    messagingSenderId: "123456789012",
-    appId: "1:123456789012:web:abcdef123456"
+    apiKey: "AIzaSyB5YDvsvyiqLK8w0Qo__i6Fuz9sB1RFIJI",
+    authDomain: "evoriabloom-9dd11.firebaseapp.com",
+    projectId: "evoriabloom-9dd11",
+    storageBucket: "evoriabloom-9dd11.firebasestorage.app",
+    messagingSenderId: "638623635142",
+    appId: "1:638623635142:web:e195d002efd207b524a9c7",
+    measurementId: "G-MEQ7G2LJ56"
   };
 
   // Check if user has saved custom config in localStorage
@@ -92,36 +93,17 @@ window.EvoriaAuth = (function () {
     }
 
     if (!isConfigured) {
-      // If user hasn't configured Firebase yet, prompt them to configure or provide mock demo session
-      const promptConfig = confirm(
-        "તમારા Firebase પ્રોજેક્ટનું Configuration બાકી છે.\n\nશું તમે અત્યારે Firebase Configuration સેટ કરવા માંગો છો?\n(Cancel કરવાથી એક ટેસ્ટ લોગિન સેશન ચાલુ થશે)"
-      );
-
-      if (promptConfig) {
-        const modal = document.getElementById('firebase-config-modal');
-        if (modal) modal.classList.remove('hidden');
-        return null;
-      } else {
-        // Provide mock authenticated user for instant local testing
-        const mockUser = {
-          uid: "demo_seller_101",
-          displayName: "Viral Tada (EvoriaBloom)",
-          email: "seller@evoriabloom.com",
-          photoURL: "https://api.dicebear.com/7.x/bottts/svg?seed=EvoriaBloom",
-          isDemo: true
-        };
-        localStorage.setItem('evoriabloom_demo_user', JSON.stringify(mockUser));
-        if (window._authChangeCallback) {
-          window._authChangeCallback(mockUser);
-        }
-        return mockUser;
-      }
+      alert("તમારા Firebase પ્રોજેક્ટનું Configuration બાકી છે. કૃપા કરીને Firebase Config સેટ કરો.");
+      const modal = document.getElementById('firebase-config-modal');
+      if (modal) modal.classList.remove('hidden');
+      return null;
     }
 
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
+      provider.setCustomParameters({ prompt: 'select_account' });
       const result = await auth.signInWithPopup(provider);
       const user = result.user;
 
@@ -131,7 +113,13 @@ window.EvoriaAuth = (function () {
       return user;
     } catch (error) {
       console.error('Google Sign-In Error:', error);
-      alert('Google Login નિષ્ફળ થયું: ' + error.message);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert('Firebase સેટિંગ નોંધ: તમારા Firebase Console -> Authentication -> Settings -> Authorized Domains માં "orealuxe.in" ઉમેરવું પડશે.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        console.info('Google Sign-in popup was closed by user.');
+      } else {
+        alert('Google Login: ' + error.message);
+      }
       throw error;
     }
   }
@@ -196,14 +184,8 @@ window.EvoriaAuth = (function () {
   function onAuthChange(callback) {
     window._authChangeCallback = callback;
 
-    // Check for demo user session
-    const demo = localStorage.getItem('evoriabloom_demo_user');
-    if (demo) {
-      try {
-        callback(JSON.parse(demo));
-        return;
-      } catch (e) {}
-    }
+    // Purge any legacy demo user session
+    localStorage.removeItem('evoriabloom_demo_user');
 
     if (auth) {
       auth.onAuthStateChanged(user => {

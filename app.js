@@ -51,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const authGateCard = document.getElementById('auth-gate-card');
   const uploadCardWrapper = document.getElementById('upload-card-wrapper');
   const gateGoogleLoginBtn = document.getElementById('gate-google-login-btn');
-  const gateInstantSellerBtn = document.getElementById('gate-instant-seller-btn');
   const navGoogleLoginBtn = document.getElementById('nav-google-login-btn');
   const navUserProfile = document.getElementById('nav-user-profile');
   const navUserAvatar = document.getElementById('nav-user-avatar');
@@ -153,9 +152,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const closeInfoModalBtn = document.getElementById('close-info-modal');
 
   // ==========================================
-  // 0. Firebase Authentication & Protection
+  // 0. Firebase Authentication & Protection (Strict Admin viraltada2001@gmail.com)
   // ==========================================
+  const ADMIN_EMAIL = 'viraltada2001@gmail.com';
+
   function updateAuthUI(user) {
+    // Strict Admin check: Only viraltada2001@gmail.com is authorized!
+    if (user) {
+      const email = (user.email || '').toLowerCase().trim();
+      if (email !== ADMIN_EMAIL.toLowerCase()) {
+        alert(
+          `❌ ઍક્સેસ નકારાયો (Access Denied):\n\n` +
+          `તમારું એકાઉન્ટ (${user.email || 'અજાણ્યું'}) એડમિન તરીકે માન્ય નથી.\n` +
+          `ફક્ત Admin (${ADMIN_EMAIL}) જ EvoriaBloom ટૂલનો ઉપયોગ કરી શકે છે.`
+        );
+        if (window.EvoriaAuth) {
+          window.EvoriaAuth.logout();
+        }
+        if (window.EvoriaDB) {
+          window.EvoriaDB.setActiveUser(null);
+        }
+        user = null;
+      } else {
+        // Authenticated Admin
+        if (window.EvoriaDB) {
+          window.EvoriaDB.saveUser(user);
+          window.EvoriaDB.setActiveUser(user);
+        }
+      }
+    }
+
     state.currentUser = user;
 
     if (user) {
@@ -164,10 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (navGoogleLoginBtn) navGoogleLoginBtn.classList.add('hidden');
       if (navUserProfile) navUserProfile.classList.remove('hidden');
       if (navUserAvatar) {
-        navUserAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.displayName || 'Seller')}`;
+        navUserAvatar.src = user.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user.displayName || 'Viral')}`;
       }
-      if (navUserName) navUserName.textContent = user.displayName || user.email || 'Seller';
-      if (userBadgeEmail) userBadgeEmail.textContent = user.email || user.displayName || '';
+      if (navUserName) navUserName.textContent = '👑 Admin (Viral Tada)';
+      if (userBadgeEmail) userBadgeEmail.textContent = `👑 Admin Verified: ${user.email}`;
     } else {
       if (authGateCard) authGateCard.classList.remove('hidden');
       if (uploadCardWrapper) uploadCardWrapper.classList.add('hidden');
@@ -202,15 +228,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Login Handlers
+  // Login Handlers (Only Google Login Allowed)
   async function triggerGoogleLogin() {
     if (!window.EvoriaAuth) return;
     try {
-      showToast('Connecting with Google Sign-In...');
+      showToast('Google Sign-In કનેક્ટ થઈ રહ્યું છે...');
       const user = await window.EvoriaAuth.loginWithGoogle();
       if (user) {
-        updateAuthUI(user);
-        showToast(`👋 Welcome, ${user.displayName || 'Seller'}! Tool is now unlocked.`);
+        const email = (user.email || '').toLowerCase().trim();
+        if (email === ADMIN_EMAIL.toLowerCase()) {
+          updateAuthUI(user);
+          showToast(`👑 સ્વાગત છે, Viral Tada! Admin Access Unlocked.`);
+        } else {
+          updateAuthUI(user);
+        }
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -219,24 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (gateGoogleLoginBtn) gateGoogleLoginBtn.addEventListener('click', triggerGoogleLogin);
   if (navGoogleLoginBtn) navGoogleLoginBtn.addEventListener('click', triggerGoogleLogin);
-
-  // 1-Click Instant Seller Access for orealuxe.in
-  if (gateInstantSellerBtn) {
-    gateInstantSellerBtn.addEventListener('click', () => {
-      const storeOwner = {
-        uid: 'seller_viral_0310',
-        displayName: 'Viral (Store Owner)',
-        email: 'seller@orealuxe.in',
-        photoURL: 'https://api.dicebear.com/7.x/bottts/svg?seed=Viral0310'
-      };
-      if (window.EvoriaDB) {
-        window.EvoriaDB.saveUser(storeOwner);
-        window.EvoriaDB.setActiveUser(storeOwner);
-      }
-      updateAuthUI(storeOwner);
-      showToast('⚡ Welcome back, Viral! Tool unlocked for orealuxe.in');
-    });
-  }
 
   if (navLogoutBtn) {
     navLogoutBtn.addEventListener('click', async () => {
@@ -247,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.EvoriaDB.setActiveUser(null);
       }
       updateAuthUI(null);
-      showToast('Logged out successfully.');
+      showToast('સફળતાપૂર્વક Logout થઈ ગયું.');
     });
   }
 
